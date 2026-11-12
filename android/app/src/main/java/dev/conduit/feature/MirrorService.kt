@@ -71,7 +71,7 @@ class MirrorService : Service() {
             stopSelf(); return START_NOT_STICKY
         }
         val mpm = getSystemService(MediaProjectionManager::class.java)
-        val mp = mpm.getMediaProjection(resultCode, data)
+        val mp = mpm.getMediaProjection(resultCode, data) ?: run { stopSelf(); return START_NOT_STICKY }
         projection = mp
         mp.registerCallback(object : MediaProjection.Callback() {
             override fun onStop() { stopSelf() }
