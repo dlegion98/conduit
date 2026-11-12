@@ -40,7 +40,10 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
         run: |
           if [ -n "$KEYSTORE_B64" ]; then
-            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/conduit.jks"
+            # Tolerate spaces/line breaks picked up while pasting the secret.
+            printf '%s' "$KEYSTORE_B64" | tr -d ' \r\n\t' | base64 -d > "$RUNNER_TEMP/conduit.jks" || { echo "::error::ANDROID_KEYSTORE_B64 isn't valid base64 - re-paste it"; exit 1; }
+            sum=$(sha256sum "$RUNNER_TEMP/conduit.jks" | cut -d' ' -f1)
+            [ "$sum" = "1225994de27ec60b70bb2be02a38598a7eec32e91d12870e839cd08bcfe31010" ] || { echo "::error::ANDROID_KEYSTORE_B64 doesn't match the generated keystore (got ${#KEYSTORE_B64} chars) - re-paste it"; exit 1; }
             echo "CONDUIT_KEYSTORE=$RUNNER_TEMP/conduit.jks" >> "$GITHUB_ENV"
             echo "CONDUIT_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
           else
@@ -77,7 +80,9 @@ jobs:
             security create-keychain -p ci "$KC"
             security set-keychain-settings "$KC"
             security unlock-keychain -p ci "$KC"
-            echo "$CERT_P12_B64" | base64 -d > "$RUNNER_TEMP/cert.p12"
+            printf '%s' "$CERT_P12_B64" | tr -d ' \r\n\t' | base64 -d > "$RUNNER_TEMP/cert.p12" || { echo "::error::MAC_CERT_P12_B64 isn't valid base64 - re-paste it"; exit 1; }
+            sum=$(shasum -a 256 "$RUNNER_TEMP/cert.p12" | cut -d' ' -f1)
+            [ "$sum" = "6bf025c67b3b093a61cf8d7e8e50828c5641b50fd5cec1efa5d113b2b64bd4e8" ] || { echo "::error::MAC_CERT_P12_B64 doesn't match the generated certificate (got ${#CERT_P12_B64} chars) - re-paste it"; exit 1; }
             security import "$RUNNER_TEMP/cert.p12" -k "$KC" -P "$CERT_PASSWORD" -T /usr/bin/codesign
             security set-key-partition-list -S apple-tool:,apple: -s -k ci "$KC" >/dev/null
             security list-keychains -d user -s "$KC" $(security list-keychains -d user | tr -d '"')
