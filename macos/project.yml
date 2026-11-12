@@ -10,6 +10,8 @@ settings:
   base:
     SWIFT_VERSION: "5.0"
     MACOSX_DEPLOYMENT_TARGET: "14.0"
+    MARKETING_VERSION: "1.0.0"     # CI overrides both with the build number
+    CURRENT_PROJECT_VERSION: "1"
     # Set your Apple Developer Team ID here (Xcode → Settings → Accounts), or pick it in Signing & Capabilities.
     DEVELOPMENT_TEAM: ""
     CODE_SIGN_STYLE: Automatic

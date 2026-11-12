@@ -19,6 +19,7 @@ struct MenuView: View {
                 if let t = model.transfers.first(where: { !$0.done && $0.error == nil }) { TransferRow(t: t) }
                 recent
             }
+            UpdateRow(compact: true)
             if MacFinder.shared.ringing {
                 Button { MacFinder.shared.stop() } label: { Label("Stop “Find my Mac” sound", systemImage: "speaker.slash.fill") }
                     .buttonStyle(.borderedProminent).tint(.orange)
@@ -273,6 +274,59 @@ struct NotificationRow: View {
                     .padding(.top, 4)
                 }
             }
+        }
+    }
+}
+
+/// Update status: a slim row in the menu bar panel, a full row in Settings.
+struct UpdateRow: View {
+    var compact: Bool
+    @ObservedObject private var updater = Updater.shared
+
+    var body: some View {
+        switch updater.state {
+        case let .available(_, version, notes, _):
+            HStack {
+                Image(systemName: "arrow.down.circle.fill").foregroundStyle(.tint).font(.title3)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Conduit \(version) is available").font(.callout.weight(.semibold))
+                    if !notes.isEmpty { Text(notes).font(.caption).foregroundStyle(.secondary).lineLimit(2) }
+                }
+                Spacer()
+                Button("Update") { updater.install() }.buttonStyle(.borderedProminent).controlSize(.small)
+            }
+            .padding(10)
+            .background(.tint.opacity(0.1), in: RoundedRectangle(cornerRadius: 10))
+        case let .downloading(version, progress):
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Downloading \(version)…").font(.callout)
+                ProgressView(value: progress)
+            }
+        case .installing:
+            HStack { ProgressView().controlSize(.small); Text("Installing — Conduit will restart").font(.callout) }
+        case let .failed(message):
+            if compact {
+                Text(message).font(.caption).foregroundStyle(.orange).lineLimit(2)
+            } else {
+                full(status: message, color: .orange)
+            }
+        case .checking:
+            if !compact { HStack { ProgressView().controlSize(.small); Text("Checking…") } }
+        case .upToDate:
+            if !compact { full(status: "You're up to date", color: .green) }
+        case .idle:
+            if !compact { full(status: nil, color: .secondary) }
+        }
+    }
+
+    private func full(status: String?, color: Color) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Conduit \(updater.currentVersion)")
+                if let status { Text(status).font(.caption).foregroundStyle(color) }
+            }
+            Spacer()
+            Button("Check for Updates") { updater.check() }
         }
     }
 }

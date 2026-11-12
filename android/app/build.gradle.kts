@@ -12,14 +12,30 @@ android {
         applicationId = "dev.conduit"
         minSdk = 31
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        // CI passes the commit count, so every release has a higher build number than the last.
+        val build = (System.getenv("BUILD_NUMBER") ?: "1").toInt()
+        versionCode = build
+        versionName = "1.0.$build"
+    }
+
+    signingConfigs {
+        create("conduit") {
+            // Stable key from CI secrets so in-app updates install over the old version.
+            val ks = System.getenv("CONDUIT_KEYSTORE")
+            if (ks != null) {
+                storeFile = file(ks)
+                storePassword = System.getenv("CONDUIT_KEYSTORE_PASSWORD")
+                keyAlias = "conduit"
+                keyPassword = System.getenv("CONDUIT_KEYSTORE_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = if (System.getenv("CONDUIT_KEYSTORE") != null) signingConfigs.getByName("conduit")
+                            else signingConfigs.getByName("debug")
         }
     }
     compileOptions {

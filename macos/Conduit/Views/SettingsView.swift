@@ -7,6 +7,7 @@ struct SettingsView: View {
     @Environment(\.openWindow) private var openWindow
     @AppStorage("clipboardSync") private var clipboardSync = true
     @AppStorage("cameraFacing") private var cameraFacing = "back"
+    @AppStorage("autoUpdateCheck") private var autoUpdate = true
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var accessibility = InputInjector.shared.hasAccess
 
@@ -31,6 +32,11 @@ struct SettingsView: View {
                     Toggle("Sync clipboard to phone", isOn: $clipboardSync)
                     Text("Copying on your Mac sends it to your phone. To send from the phone, use its “Send clipboard” tile or notification button. Passwords copied from password managers are skipped.")
                         .font(.caption).foregroundStyle(.secondary)
+                }
+                Section("Updates") {
+                    UpdateRow(compact: false)
+                    Toggle("Check for updates automatically", isOn: $autoUpdate)
+                        .onChange(of: autoUpdate) { _, on in Updater.shared.autoCheck = on }
                 }
                 Section("Control this Mac from the phone") {
                     HStack {

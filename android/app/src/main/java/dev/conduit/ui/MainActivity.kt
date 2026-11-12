@@ -38,6 +38,7 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         Launcher.appInForeground = true
+        dev.conduit.feature.Updater.check(this)
         if (LinkManager.pairing.load() != null) {
             runCatching { LinkService.start(this) }
             LinkManager.kick()

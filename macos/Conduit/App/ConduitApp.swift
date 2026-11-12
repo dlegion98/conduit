@@ -47,6 +47,7 @@ private struct MenuBarLabel: View {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         AppModel.shared.start()
+        Updater.shared.start()
         if UserDefaults.standard.object(forKey: "launchAtLoginSet") == nil {
             try? SMAppService.mainApp.register()
             UserDefaults.standard.set(true, forKey: "launchAtLoginSet")

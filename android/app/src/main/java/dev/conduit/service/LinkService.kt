@@ -24,6 +24,7 @@ import kotlinx.coroutines.launch
 /** Foreground service that keeps the control connection to the Mac alive. */
 class LinkService : Service() {
     private var watcher: Job? = null
+    private var updates: Job? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -34,6 +35,12 @@ class LinkService : Service() {
         CallHandler.register(this)
         SmsHandler.register(this)
         LinkManager.start()
+        updates = LinkManager.scope.launch {
+            while (true) {
+                dev.conduit.feature.Updater.check(applicationContext, notify = true)
+                kotlinx.coroutines.delay(6 * 60 * 60 * 1000L)
+            }
+        }
         watcher = LinkManager.scope.launch {
             LinkManager.state.map { it.detail }.distinctUntilChanged().collect { detail ->
                 getSystemService(NotificationManager::class.java).notify(NOTIF_ID, buildNotification(detail))
@@ -54,6 +61,7 @@ class LinkService : Service() {
 
     override fun onDestroy() {
         watcher?.cancel()
+        updates?.cancel()
         StatusReporter.unregister(this)
         CallHandler.unregister(this)
         SmsHandler.unregister(this)

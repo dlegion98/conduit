@@ -86,6 +86,7 @@ fun HomeScreen(onOpenRemote: () -> Unit, onOpenFeatures: () -> Unit, wide: Boole
     val phoneName = remember { LinkManager.deviceName().removeSuffix("'s phone").take(18) }
 
     val linkSection: @Composable ColumnScope.() -> Unit = {
+        UpdateBanner()
         ConnectionHero(state, phoneName = phoneName, phoneBattery = battery)
 
         // Live sessions get their own banner with a clear way out.

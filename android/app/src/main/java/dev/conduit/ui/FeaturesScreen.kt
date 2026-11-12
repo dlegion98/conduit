@@ -80,6 +80,9 @@ fun FeaturesScreen() {
             ListItemRow(Icons.Default.Share, "Share sheet", "Choose “Send to Mac” from any app to send files, links or text")
         }
 
+        SectionLabel("Updates")
+        UpdateCard()
+
         SectionLabel("Paired Mac")
         ConduitCard(padding = 4.dp) {
             ListItemRow(Icons.Default.LaptopMac, state.macName.ifEmpty { "Mac" }, if (state.connected) "Connected · ${state.host}" else "Not connected")
