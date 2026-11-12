@@ -23,6 +23,7 @@ jobs:
           mkdir -p files
           find out -name '*.apk' -exec cp {} files/Conduit.apk \;
           find out -name 'Conduit-macOS.zip' -exec cp {} files/Conduit-macOS.zip \;
+          find out -name 'Conduit.dmg' -exec cp {} files/Conduit.dmg \;
           ls -la files
       - uses: softprops/action-gh-release@v2
         with:
@@ -32,6 +33,7 @@ jobs:
           body: |
             Built from ${{ github.event.workflow_run.head_sha }}.
             - **Conduit.apk**: install on your phone (allow installs from your browser/files app).
-            - **Conduit-macOS.zip**: unzip, move Conduit.app to Applications, right-click → Open the first time.
+            - **Conduit.dmg**: open it and drag Conduit into Applications. First launch: System Settings → Privacy & Security → Open Anyway.
+            - **Conduit-macOS.zip**: the same app, zipped.
           files: files/*
           fail_on_unmatched_files: false

@@ -15,7 +15,14 @@ jobs:
             CODE_SIGN_ENTITLEMENTS=Conduit/Resources/Conduit-adhoc.entitlements \
             OTHER_CODE_SIGN_FLAGS=--deep build | xcpretty || exit ${PIPESTATUS[0]}
       - run: cd build/Build/Products/Release && ditto -c -k --keepParent Conduit.app Conduit-macOS.zip
+      - name: Make DMG (drag Conduit to Applications)
+        run: |
+          mkdir -p dmg && cp -R build/Build/Products/Release/Conduit.app dmg/
+          ln -s /Applications dmg/Applications
+          hdiutil create -volname "Conduit" -srcfolder dmg -ov -format UDZO build/Build/Products/Release/Conduit.dmg
       - uses: actions/upload-artifact@v4
         with:
           name: Conduit-macOS
-          path: macos/build/Build/Products/Release/Conduit-macOS.zip
+          path: |
+            macos/build/Build/Products/Release/Conduit-macOS.zip
+            macos/build/Build/Products/Release/Conduit.dmg
