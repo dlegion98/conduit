@@ -1,0 +1,87 @@
+import Combine
+import ServiceManagement
+import SwiftUI
+
+struct SettingsView: View {
+    @EnvironmentObject var model: AppModel
+    @Environment(\.openWindow) private var openWindow
+    @AppStorage("clipboardSync") private var clipboardSync = true
+    @AppStorage("cameraFacing") private var cameraFacing = "back"
+    @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
+    @State private var accessibility = InputInjector.shared.hasAccess
+
+    var body: some View {
+        TabView {
+            Form {
+                Section("Phone") {
+                    LabeledContent("Paired with", value: model.paired ? model.phoneName : "Nothing yet")
+                    if !model.phoneModel.isEmpty { LabeledContent("Model", value: model.phoneModel) }
+                    HStack {
+                        Button(model.paired ? "Pair a Different Phone…" : "Pair Phone…") {
+                            model.beginPairing(); openWindow(id: "pair")
+                        }
+                        if model.paired { Button("Unpair", role: .destructive) { model.unpair() } }
+                    }
+                }
+                Section("General") {
+                    Toggle("Open at login", isOn: $launchAtLogin)
+                        .onChange(of: launchAtLogin) { _, on in
+                            if on { try? SMAppService.mainApp.register() } else { try? SMAppService.mainApp.unregister() }
+                        }
+                    Toggle("Sync clipboard to phone", isOn: $clipboardSync)
+                    Text("Copying on your Mac sends it to your phone. To send from the phone, use its “Send clipboard” tile or notification button. Passwords copied from password managers are skipped.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                Section("Control this Mac from the phone") {
+                    HStack {
+                        Label(accessibility ? "Accessibility access granted" : "Needs Accessibility access",
+                              systemImage: accessibility ? "checkmark.circle.fill" : "exclamationmark.triangle")
+                            .foregroundStyle(accessibility ? .green : .orange)
+                        Spacer()
+                        if !accessibility {
+                            Button("Grant…") { InputInjector.shared.requestAccess() }
+                        }
+                    }
+                    Text("Lets the phone's Trackpad and Keys tabs move the pointer, click, type and press media keys.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            .formStyle(.grouped)
+            .tabItem { Label("General", systemImage: "gearshape") }
+
+            Form {
+                Section("Phone as webcam") {
+                    Button("Install Conduit Camera") { CameraBridge.shared.installExtension() }
+                    Text("One-time setup. Conduit must be in your Applications folder; macOS will ask you to allow the extension in System Settings. Then pick “Conduit Camera” in FaceTime, Zoom, Meet or OBS.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Picker("Lens", selection: $cameraFacing) {
+                        Text("Back (best quality)").tag("back")
+                        Text("Front").tag("front")
+                    }
+                    Text("Tip: mount the phone in landscape. On the Fold you can use the back cameras with the cover screen as a viewfinder.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            .formStyle(.grouped)
+            .tabItem { Label("Camera", systemImage: "web.camera") }
+
+            Form {
+                Section("Show notifications from") {
+                    if model.seenApps.isEmpty {
+                        Text("Apps appear here once they've sent a notification.").foregroundStyle(.secondary)
+                    }
+                    ForEach(model.seenApps.sorted { $0.value < $1.value }, id: \.key) { pkg, label in
+                        Toggle(label, isOn: Binding(get: { !model.mutedApps.contains(pkg) }, set: { _ in model.toggleMute(pkg) }))
+                    }
+                }
+            }
+            .formStyle(.grouped)
+            .tabItem { Label("Notifications", systemImage: "bell") }
+        }
+        .frame(width: 520, height: 460)
+        .onAppear { accessibility = InputInjector.shared.hasAccess }
+        .onReceive(Timer.publish(every: 2, on: .main, in: .common).autoconnect()) { _ in
+            accessibility = InputInjector.shared.hasAccess
+        }
+    }
+}

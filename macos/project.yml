@@ -1,0 +1,66 @@
+# Generate the Xcode project with:  brew install xcodegen && xcodegen
+name: Conduit
+options:
+  bundleIdPrefix: dev.conduit
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    # Set your Apple Developer Team ID here (Xcode → Settings → Accounts), or pick it in Signing & Capabilities.
+    DEVELOPMENT_TEAM: ""
+    CODE_SIGN_STYLE: Automatic
+    ENABLE_HARDENED_RUNTIME: YES
+
+targets:
+  Conduit:
+    type: application
+    platform: macOS
+    sources:
+      - path: Conduit
+        excludes:
+          - "Resources/Info.plist"
+          - "Resources/Conduit.entitlements"
+          - "Resources/Conduit-adhoc.entitlements"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.conduit.app
+        PRODUCT_NAME: Conduit
+        INFOPLIST_FILE: Conduit/Resources/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Conduit/Resources/Conduit.entitlements
+        GENERATE_INFOPLIST_FILE: NO
+    dependencies:
+      - target: ConduitCamera
+        embed: true
+        codeSign: true
+        copy:
+          destination: wrapper
+          subpath: Contents/Library/SystemExtensions
+      - sdk: CoreMediaIO.framework
+      - sdk: SystemExtensions.framework
+      - sdk: VideoToolbox.framework
+      - sdk: IOKit.framework
+      - sdk: Carbon.framework
+
+  ConduitCamera:
+    type: system-extension
+    platform: macOS
+    sources:
+      - path: ConduitCamera
+        excludes:
+          - "Info.plist"
+          - "ConduitCamera.entitlements"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.conduit.app.camera
+        PRODUCT_NAME: dev.conduit.app.camera
+        INFOPLIST_FILE: ConduitCamera/Info.plist
+        CODE_SIGN_ENTITLEMENTS: ConduitCamera/ConduitCamera.entitlements
+        GENERATE_INFOPLIST_FILE: NO
+        SKIP_INSTALL: YES
+    dependencies:
+      - sdk: CoreMediaIO.framework
+      - sdk: IOKit.framework
