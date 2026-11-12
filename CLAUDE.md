@@ -11,6 +11,6 @@ Mac (SwiftUI, `macos/`) + Android (Kotlin/Compose, `android/`) link app. The wir
    Add new message types/fields; never rename or remove existing ones. Unknown types must be ignored.
 4. Never touch signing secrets, the keystore settings, or the updater's manifest URL.
 5. Battery matters: no polling loops, no shorter keepalives, nothing that wakes the phone more often.
-6. Check UI changes in the screenshot test output (the `screenshots` release on main, or the job log on branches);
+6. Check UI changes in the screenshot test output (release `screenshots` for main, `screenshots-<branch>` for a branch) before merging;
    add a case to `ScreenshotTest.kt` for new screens.
 7. Update `CHANGELOG.md` (user-facing, short) and tick or add items in `ROADMAP.md`.
