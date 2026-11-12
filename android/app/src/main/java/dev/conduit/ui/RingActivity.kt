@@ -22,9 +22,9 @@ import dev.conduit.feature.RingHandler
 class RingActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent {
+        setContent { dev.conduit.ui.theme.ConduitTheme(dark = true) {
             Column(
-                Modifier.fillMaxSize().background(Color(0xFF0E1116)),
+                Modifier.fillMaxSize().background(dev.conduit.ui.theme.Conduit.colors.background),
                 verticalArrangement = Arrangement.Center,
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
@@ -36,6 +36,6 @@ class RingActivity : ComponentActivity() {
                     Text("Stop", fontSize = 20.sp)
                 }
             }
-        }
+        } }
     }
 }

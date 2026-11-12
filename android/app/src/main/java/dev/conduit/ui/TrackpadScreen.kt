@@ -2,17 +2,21 @@ package dev.conduit.ui
 
 import android.view.HapticFeedbackConstants
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.TouchApp
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import dev.conduit.ui.theme.Conduit
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
@@ -26,20 +30,21 @@ import kotlin.math.min
  * hold, then move: drag.
  */
 @Composable
-fun TrackpadScreen() {
+fun Trackpad() {
     val view = LocalView.current
 
     fun send(kind: String, dx: Float = 0f, dy: Float = 0f) = LinkManager.send("mac-input") {
         put("kind", kind); put("dx", dx.toDouble()); put("dy", dy.toDouble())
     }
 
-    Column(Modifier.fillMaxSize().padding(16.dp)) {
+    Column(Modifier.fillMaxSize()) {
         Box(
             Modifier
                 .weight(1f)
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(28.dp))
-                .background(Color(0xFF171B22))
+                .clip(MaterialTheme.shapes.large)
+                .background(Conduit.colors.card)
+                .border(1.dp, Conduit.colors.outline, MaterialTheme.shapes.large)
                 .pointerInput(Unit) {
                     val slop = viewConfiguration.touchSlop
                     awaitEachGesture {
@@ -92,7 +97,12 @@ fun TrackpadScreen() {
                 },
             contentAlignment = Alignment.Center,
         ) {
-            Text("Trackpad", color = Color(0xFF3A414D), fontSize = 18.sp)
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(Icons.Default.TouchApp, null, tint = Conduit.colors.faint, modifier = Modifier.size(34.dp))
+                Spacer(Modifier.height(10.dp))
+                Text("Move · tap to click · two fingers to scroll\nhold, then move, to drag", color = Conduit.colors.faint,
+                    fontSize = 13.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            }
         }
         Spacer(Modifier.height(12.dp))
         Row(Modifier.fillMaxWidth().height(64.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -104,7 +114,7 @@ fun TrackpadScreen() {
 
 @Composable
 private fun TrackButton(label: String, modifier: Modifier, onClick: () -> Unit) {
-    androidx.compose.material3.FilledTonalButton(onClick = onClick, modifier = modifier.fillMaxHeight(), shape = RoundedCornerShape(20.dp)) {
+    androidx.compose.material3.FilledTonalButton(onClick = onClick, modifier = modifier.fillMaxHeight(), shape = MaterialTheme.shapes.medium) {
         Text(label)
     }
 }

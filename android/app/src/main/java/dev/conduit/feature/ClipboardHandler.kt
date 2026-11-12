@@ -43,6 +43,7 @@ object ClipboardHandler {
             }
         }
         cm.setPrimaryClip(clip)
+        LinkManager.log(dev.conduit.net.ActivityItem.Kind.CLIPBOARD_IN, if (text != null) "Copied from Mac: ${text.take(40)}" else "Image copied from Mac")
     }
 
     /** Call while an activity of ours has focus. Returns a short status for a toast. */
@@ -57,12 +58,14 @@ object ClipboardHandler {
             val b64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
             lastHash = hash(b64)
             LinkManager.send("clipboard") { put("image", b64) }
+            LinkManager.log(dev.conduit.net.ActivityItem.Kind.CLIPBOARD_OUT, "Image sent to Mac clipboard")
             return "Image sent to Mac"
         }
         val text = item.coerceToText(context)?.toString() ?: return "Nothing to send"
         if (text.isEmpty()) return "Clipboard is empty"
         lastHash = hash(text)
         LinkManager.send("clipboard") { put("text", text) }
+        LinkManager.log(dev.conduit.net.ActivityItem.Kind.CLIPBOARD_OUT, "Sent to Mac clipboard: ${text.take(40)}")
         return "Clipboard sent to Mac"
     }
 

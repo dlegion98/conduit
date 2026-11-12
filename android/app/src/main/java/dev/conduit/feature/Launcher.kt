@@ -53,12 +53,20 @@ object Launcher {
         val uri = Uri.parse(url)
         if (uri.scheme !in setOf("http", "https", "mailto", "tel", "geo")) return
         launch(context, Intent(Intent.ACTION_VIEW, uri), "Link from your Mac", url)
+        dev.conduit.net.LinkManager.log(dev.conduit.net.ActivityItem.Kind.LINK_IN, "Opened ${uri.host ?: url} from Mac")
     }
 
     fun dial(context: Context, number: String) {
         val canCall = context.checkSelfPermission(Manifest.permission.CALL_PHONE) == PackageManager.PERMISSION_GRANTED
         val intent = Intent(if (canCall) Intent.ACTION_CALL else Intent.ACTION_DIAL, Uri.fromParts("tel", number, null))
         launch(context, intent, "Call from your Mac", "Tap to call $number")
+    }
+
+    /** Sends a link to open in the Mac's browser. */
+    fun openOnMac(url: String): Boolean {
+        val ok = dev.conduit.net.LinkManager.send("open-url") { put("url", url) }
+        if (ok) dev.conduit.net.LinkManager.log(dev.conduit.net.ActivityItem.Kind.LINK_OUT, "Opened ${Uri.parse(url).host ?: url} on Mac")
+        return ok
     }
 
     fun startMirror(context: Context, msg: JSONObject) {

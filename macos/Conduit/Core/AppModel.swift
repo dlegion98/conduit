@@ -240,6 +240,8 @@ final class AppModel: ObservableObject {
             InputInjector.shared.handle(msg)
         case "ring-state":
             ringing = msg.bool("ringing")
+        case "ring":
+            MacFinder.shared.set(msg.bool("on"))
         case "error":
             lastError = msg.str("message")
             NotificationsBridge.shared.postInfo(title: "Conduit", body: msg.str("message"))

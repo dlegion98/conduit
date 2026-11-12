@@ -49,7 +49,13 @@ data class LinkState(
     val macCharging: Boolean = false,
     val mirroring: Boolean = false,
     val camera: Boolean = false,
+    val macRinging: Boolean = false,
 )
+
+/** One line in the shared activity feed ("Sent photo.jpg to Mac", "Link from Mac"…). */
+data class ActivityItem(val kind: Kind, val text: String, val time: Long = System.currentTimeMillis()) {
+    enum class Kind { CONNECTED, DISCONNECTED, FILE_OUT, FILE_IN, CLIPBOARD_OUT, CLIPBOARD_IN, LINK_OUT, LINK_IN, MIRROR, CAMERA, RING, ERROR }
+}
 
 @SuppressLint("StaticFieldLeak") // holds the Application context only
 object LinkManager {
@@ -67,6 +73,13 @@ object LinkManager {
 
     private val _state = MutableStateFlow(LinkState())
     val state: StateFlow<LinkState> = _state
+
+    private val _activity = MutableStateFlow<List<ActivityItem>>(emptyList())
+    val activity: StateFlow<List<ActivityItem>> = _activity
+
+    fun log(kind: ActivityItem.Kind, text: String) {
+        _activity.update { (listOf(ActivityItem(kind, text)) + it).take(30) }
+    }
 
     @Volatile private var control: Connection? = null
     @Volatile private var currentHost: String? = null
@@ -121,8 +134,15 @@ object LinkManager {
 
     fun kick() { wake.trySend(Unit) }
 
-    fun setMirroring(on: Boolean) = _state.update { it.copy(mirroring = on) }
-    fun setCamera(on: Boolean) = _state.update { it.copy(camera = on) }
+    fun setMirroring(on: Boolean) {
+        if (_state.value.mirroring != on) log(ActivityItem.Kind.MIRROR, if (on) "Screen mirroring started" else "Screen mirroring stopped")
+        _state.update { it.copy(mirroring = on) }
+    }
+
+    fun setCamera(on: Boolean) {
+        if (_state.value.camera != on) log(ActivityItem.Kind.CAMERA, if (on) "Webcam on" else "Webcam off")
+        _state.update { it.copy(camera = on) }
+    }
 
     // ---- Sending -----------------------------------------------------------
 
@@ -182,11 +202,13 @@ object LinkManager {
                 backoff = 2000L
                 control = conn
                 _state.update { it.copy(connected = true, host = currentHost ?: "", detail = "Connected to ${mac.name}") }
+                log(ActivityItem.Kind.CONNECTED, "Connected to ${mac.name}")
                 onConnected()
                 readLoop(conn)
                 control = null
                 onDisconnected() // before clearing state: stop() checks the mirroring/camera flags
                 _state.update { it.copy(connected = false, detail = "Disconnected — reconnecting") }
+                log(ActivityItem.Kind.DISCONNECTED, "Lost connection to ${mac.name}")
             } else {
                 _state.update { it.copy(connected = false, detail = "Can't reach ${mac.name}. Is it on the same Wi-Fi?") }
             }
@@ -259,6 +281,7 @@ object LinkManager {
             "open-url" -> Launcher.openUrl(context, msg.getString("url"))
             "file-offer" -> FileTransfer.pull(context, msg.getString("id"), msg.getString("name"), msg.optLong("size"))
             "ring" -> if (msg.optBoolean("on", true)) RingHandler.start(context) else RingHandler.stop(context)
+            "ring-state" -> _state.update { it.copy(macRinging = msg.optBoolean("ringing")) }
             "mirror-start" -> Launcher.startMirror(context, msg)
             "mirror-stop" -> MirrorService.stop(context)
             "camera-start" -> Launcher.startCamera(context, msg)

@@ -40,10 +40,11 @@ class ShareActivity : Activity() {
         if (text.isNullOrEmpty()) { finish(); return }
         val url = Regex("https?://\\S+").find(text)?.value
         if (url != null) {
-            LinkManager.send("open-url") { put("url", url) }
+            dev.conduit.feature.Launcher.openOnMac(url)
             Toast.makeText(this, "Opened on Mac", Toast.LENGTH_SHORT).show()
         } else {
             LinkManager.send("clipboard") { put("text", text) }
+            LinkManager.log(dev.conduit.net.ActivityItem.Kind.CLIPBOARD_OUT, "Sent to Mac clipboard: ${text.take(40)}")
             Toast.makeText(this, "Copied to Mac clipboard", Toast.LENGTH_SHORT).show()
         }
         finish()

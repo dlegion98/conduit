@@ -55,10 +55,12 @@ object FileTransfer {
                     conn.close()
                     if (done is SecureChannel.Frame.Json && JSONObject(done.text).optString("type") == "file-done") {
                         finish(context, notifId, "Sent to Mac", name, null)
+                        LinkManager.log(dev.conduit.net.ActivityItem.Kind.FILE_OUT, "Sent $name")
                     } else error("Mac didn't confirm")
                 } catch (e: Exception) {
                     Log.w("Conduit", "push failed", e)
                     finish(context, notifId, "Couldn't send $name", e.message ?: "Error", null)
+                    LinkManager.log(dev.conduit.net.ActivityItem.Kind.ERROR, "Couldn't send $name")
                 }
             }
         }
@@ -107,6 +109,7 @@ object FileTransfer {
                 val open = Intent(Intent.ACTION_VIEW).setDataAndType(target, mime)
                     .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
                 finish(context, notifId, "Received from Mac", name, open)
+                LinkManager.log(dev.conduit.net.ActivityItem.Kind.FILE_IN, "Received $name")
             } catch (e: Exception) {
                 Log.w("Conduit", "pull failed", e)
                 target?.let { runCatching { context.contentResolver.delete(it, null, null) } }

@@ -1,4 +1,4 @@
-import Foundation
+import AppKit
 import IOKit.ps
 
 /// Sends the Mac's battery level to the phone.
@@ -33,5 +33,37 @@ final class MacStatus {
             return (max > 0 ? cur * 100 / max : cur, charging)
         }
         return nil
+    }
+}
+
+/// "Find my Mac": the phone can make the Mac play a sound until stopped (or for 45 s).
+final class MacFinder {
+    static let shared = MacFinder()
+    private var timer: Timer?
+    private var started = Date()
+    private(set) var ringing = false
+
+    func set(_ on: Bool) { on ? start() : stop() }
+
+    private func start() {
+        guard !ringing else { return }
+        ringing = true
+        started = Date()
+        AppModel.shared.send("ring-state", ["ringing": true])
+        NotificationsBridge.shared.postInfo(title: "\(AppModel.shared.phoneName) is looking for this Mac", body: "Click the Conduit menu to stop")
+        timer = Timer.scheduledTimer(withTimeInterval: 1.1, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            if Date().timeIntervalSince(self.started) > 45 { self.stop(); return }
+            (NSSound(named: "Funk") ?? NSSound(named: "Glass"))?.play()
+        }
+        timer?.fire()
+    }
+
+    func stop() {
+        guard ringing else { return }
+        ringing = false
+        timer?.invalidate()
+        timer = nil
+        AppModel.shared.send("ring-state", ["ringing": false])
     }
 }

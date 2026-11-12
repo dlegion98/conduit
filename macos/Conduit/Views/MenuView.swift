@@ -19,6 +19,10 @@ struct MenuView: View {
                 if let t = model.transfers.first(where: { !$0.done && $0.error == nil }) { TransferRow(t: t) }
                 recent
             }
+            if MacFinder.shared.ringing {
+                Button { MacFinder.shared.stop() } label: { Label("Stop “Find my Mac” sound", systemImage: "speaker.slash.fill") }
+                    .buttonStyle(.borderedProminent).tint(.orange)
+            }
             if let err = model.lastError {
                 Text(err).font(.caption).foregroundStyle(.orange).lineLimit(3)
                     .onTapGesture { model.lastError = nil }

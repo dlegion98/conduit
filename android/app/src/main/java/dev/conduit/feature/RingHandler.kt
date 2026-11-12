@@ -54,6 +54,7 @@ object RingHandler {
         context.getSystemService(NotificationManager::class.java).notify(NOTIF_ID, n)
         Launcher.launch(context, Intent(context, RingActivity::class.java), "Find my phone", "Tap to stop")
         LinkManager.send("ring-state") { put("ringing", true) }
+        LinkManager.log(dev.conduit.net.ActivityItem.Kind.RING, "Your Mac rang this phone")
     }
 
     @Synchronized
