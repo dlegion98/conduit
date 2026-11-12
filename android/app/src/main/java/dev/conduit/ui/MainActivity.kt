@@ -57,9 +57,9 @@ private enum class Tab(val label: String, val icon: ImageVector, val selectedIco
 }
 
 @Composable
-private fun App() {
+internal fun App(startTab: Int = 0) {
     val state by LinkManager.state.collectAsStateWithLifecycle()
-    var tab by rememberSaveable { mutableStateOf(Tab.Home) }
+    var tab by rememberSaveable { mutableStateOf(Tab.entries[startTab]) }
 
     Surface(color = Conduit.colors.background, modifier = Modifier.fillMaxSize()) {
         if (!state.paired) {

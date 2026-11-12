@@ -134,6 +134,12 @@ object LinkManager {
 
     fun kick() { wake.trySend(Unit) }
 
+    /** For screenshot tests and previews only. */
+    fun previewState(state: LinkState, activity: List<ActivityItem> = emptyList()) {
+        _state.value = state
+        _activity.value = activity
+    }
+
     fun setMirroring(on: Boolean) {
         if (_state.value.mirroring != on) log(ActivityItem.Kind.MIRROR, if (on) "Screen mirroring started" else "Screen mirroring stopped")
         _state.update { it.copy(mirroring = on) }
