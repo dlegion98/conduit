@@ -37,7 +37,7 @@ class ScreenshotTest {
     private fun shot(name: String, state: LinkState, tab: Int = 0, dark: Boolean = true) {
         LinkManager.previewState(state, activity)
         compose.mainClock.autoAdvance = false
-        compose.setContent { ConduitTheme(dark = dark) { if (state.paired) App(startTab = tab) else PairScreen() } }
+        compose.setContent { ConduitTheme(dark = dark) { App(startTab = tab) } }
         compose.mainClock.advanceTimeBy(700)
         // Draw the window directly: the animated link line never lets Compose go "idle".
         var bmp: Bitmap? = null

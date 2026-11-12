@@ -87,13 +87,13 @@ fun ConnectionHero(state: LinkState, phoneName: String, phoneBattery: Int, modif
             Canvas(Modifier.weight(1f).height(56.dp).padding(horizontal = 6.dp)) {
                 val y = size.height / 2
                 if (state.connected) {
-                    drawLine(lineColor.copy(alpha = 0.25f), Offset(0f, y), Offset(size.width, y), strokeWidth = 6f, cap = StrokeCap.Round)
+                    drawLine(lineColor.copy(alpha = 0.25f), Offset(0f, y), Offset(size.width, y), strokeWidth = 8f, cap = StrokeCap.Round)
                     // Flowing packets: one stream each way, so it reads as a two-way link.
                     val n = 4
                     for (i in 0 until n) {
                         val t = (phase + i.toFloat() / n) % 1f
-                        drawCircle(lineColor, radius = 5f, center = Offset(size.width * t, y - 7f))
-                        drawCircle(lineColor.copy(alpha = 0.7f), radius = 4f, center = Offset(size.width * (1f - t), y + 7f))
+                        drawCircle(lineColor, radius = 7f, center = Offset(size.width * t, y - 9f))
+                        drawCircle(lineColor.copy(alpha = 0.7f), radius = 6f, center = Offset(size.width * (1f - t), y + 9f))
                     }
                 } else {
                     drawLine(
@@ -128,7 +128,7 @@ fun ConnectionHero(state: LinkState, phoneName: String, phoneBattery: Int, modif
 @Composable
 private fun DeviceBadge(icon: ImageVector, name: String, detail: String, active: Boolean) {
     val tint by animateColorAsState(if (active) ConduitBlue else Conduit.colors.faint, label = "badge")
-    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(92.dp)) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(116.dp)) {
         Box(
             Modifier.size(64.dp).clip(CircleShape)
                 .background(Brush.linearGradient(listOf(tint.copy(alpha = 0.22f), tint.copy(alpha = 0.08f))))

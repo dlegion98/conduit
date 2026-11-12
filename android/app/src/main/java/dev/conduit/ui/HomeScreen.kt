@@ -83,10 +83,10 @@ fun HomeScreen(onOpenRemote: () -> Unit, onOpenFeatures: () -> Unit, wide: Boole
         Triple(Icons.Default.TouchApp, "Remote" to "Trackpad & keys", false to onOpenRemote),
     )
 
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp)) {
-        Spacer(Modifier.height(14.dp))
-        Text("Conduit", style = MaterialTheme.typography.headlineMedium, color = Conduit.colors.text, modifier = Modifier.padding(start = 4.dp, bottom = 14.dp))
-        ConnectionHero(state, phoneName = "This phone", phoneBattery = battery)
+    val phoneName = remember { LinkManager.deviceName().removeSuffix("'s phone").take(18) }
+
+    val linkSection: @Composable ColumnScope.() -> Unit = {
+        ConnectionHero(state, phoneName = phoneName, phoneBattery = battery)
 
         // Live sessions get their own banner with a clear way out.
         AnimatedVisibility(state.mirroring || state.camera, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
@@ -106,7 +106,9 @@ fun HomeScreen(onOpenRemote: () -> Unit, onOpenFeatures: () -> Unit, wide: Boole
                 repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
             }
         }
+    }
 
+    val statusSection: @Composable ColumnScope.() -> Unit = {
         SectionLabel("Syncing", trailing = {
             TextButton(onClick = onOpenFeatures, contentPadding = PaddingValues(horizontal = 8.dp)) { Text("Manage") }
         })
@@ -131,6 +133,25 @@ fun HomeScreen(onOpenRemote: () -> Unit, onOpenFeatures: () -> Unit, wide: Boole
             }
         }
         Spacer(Modifier.height(24.dp))
+    }
+
+    if (wide) {
+        // Unfolded: the link and actions on the left, what's syncing and recent activity on the right.
+        Column(Modifier.fillMaxSize().padding(horizontal = 22.dp)) {
+            Spacer(Modifier.height(14.dp))
+            Text("Conduit", style = MaterialTheme.typography.headlineMedium, color = Conduit.colors.text, modifier = Modifier.padding(start = 4.dp, bottom = 14.dp))
+            Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(22.dp)) {
+                Column(Modifier.weight(1.15f).verticalScroll(rememberScrollState()), content = linkSection)
+                Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), content = statusSection)
+            }
+        }
+    } else {
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp)) {
+            Spacer(Modifier.height(14.dp))
+            Text("Conduit", style = MaterialTheme.typography.headlineMedium, color = Conduit.colors.text, modifier = Modifier.padding(start = 4.dp, bottom = 14.dp))
+            linkSection()
+            statusSection()
+        }
     }
 
     if (linkDialog) OpenLinkDialog(onDismiss = { linkDialog = false })

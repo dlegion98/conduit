@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Backspace
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.VolumeDown
@@ -99,9 +100,13 @@ private fun KeysPanel() {
             shape = MaterialTheme.shapes.medium,
         )
         Spacer(Modifier.height(12.dp))
-        KeyRow(listOf("esc" to "escape", "tab" to "tab", "⌫" to "delete", "return" to "return"))
+        KeyRow(listOf("esc" to "escape", "tab" to "tab", "space" to "space", "return" to "return"))
         Spacer(Modifier.height(8.dp))
-        KeyRow(listOf("←" to "left", "↑" to "up", "↓" to "down", "→" to "right"))
+        IconKeyRow(listOf(
+            Icons.AutoMirrored.Filled.KeyboardArrowLeft to "left", Icons.Default.KeyboardArrowUp to "up",
+            Icons.Default.KeyboardArrowDown to "down", Icons.AutoMirrored.Filled.KeyboardArrowRight to "right",
+            Icons.AutoMirrored.Filled.Backspace to "delete",
+        ))
     }
     Spacer(Modifier.height(12.dp))
     ConduitCard(padding = 14.dp) {
@@ -154,6 +159,17 @@ private fun KeyRow(keys: List<Pair<String, String>>) {
         keys.forEach { (label, k) ->
             FilledTonalButton(onClick = { key(k) }, modifier = Modifier.weight(1f).height(48.dp), contentPadding = PaddingValues(4.dp), shape = MaterialTheme.shapes.small) {
                 Text(label, maxLines = 1)
+            }
+        }
+    }
+}
+
+@Composable
+private fun IconKeyRow(keys: List<Pair<ImageVector, String>>) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        keys.forEach { (icon, k) ->
+            FilledTonalButton(onClick = { key(k) }, modifier = Modifier.weight(1f).height(48.dp), contentPadding = PaddingValues(4.dp), shape = MaterialTheme.shapes.small) {
+                Icon(icon, k, modifier = Modifier.size(22.dp))
             }
         }
     }
