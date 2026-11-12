@@ -17,6 +17,9 @@ and add new ideas as they come up. Keep the rule: **small, safe, shippable incre
 - [ ] Hotspot: one tap on the Mac to turn on the phone's hotspot (if possible without root).
 - [ ] Localisation: Italian and Spanish.
 
+- [ ] Fold: show webcam status/preview on the cover screen while unfolded (Jetpack WindowAreaController rear display), if Samsung supports it.
+- [ ] Fold: Mac mirror window remembers separate sizes for folded vs unfolded.
+
 ## Ideas / needs investigation
 - Call audio routing (macOS has no hands-free profile; possibly via a virtual audio device).
 - RCS threads (no public API; notifications already work).

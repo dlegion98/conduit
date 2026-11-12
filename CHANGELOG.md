@@ -2,6 +2,11 @@
 
 Newest first. Each release's build number is the commit count on `main`.
 
+## Foldable support
+- **Laptop mode:** half-fold the phone on a desk and the Remote turns into a tiny laptop, with keys above the hinge and a full-width trackpad below.
+- **Book posture:** hold it half-open like a book, and Home and the Remote split cleanly at the hinge.
+- **Tabletop Home:** status on the upper half, controls within thumb reach on the lower half, plus a one-tap "be the webcam" prompt when the phone is standing up.
+
 ## Week of 2026-11-12
 - **Missed calls** on the Mac, with a Call Back button.
 - **Send to Phone** in every Mac app's Services menu (files from Finder, links, text).

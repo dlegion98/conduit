@@ -112,7 +112,11 @@ fun HomeScreen(onOpenRemote: () -> Unit, onOpenFeatures: () -> Unit, wide: Boole
 
     val actionsSection: @Composable ColumnScope.() -> Unit = {
         SectionLabel("Do more with ${state.macName.ifEmpty { "your Mac" }}")
-        val columns = if (wide || fold.posture == Posture.Tabletop) 3 else 2
+        val columns = when (fold.posture) {
+            Posture.Book -> 2 // each page is only half the screen
+            Posture.Tabletop -> 3
+            Posture.Normal -> if (wide) 3 else 2
+        }
         actions.chunked(columns).forEach { row ->
             Row(Modifier.fillMaxWidth().padding(bottom = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 row.forEach { (icon, text, act) ->
