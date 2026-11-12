@@ -4,6 +4,8 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.Network
+import android.net.NetworkCapabilities
+import android.os.PowerManager
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
 import android.net.wifi.WifiManager
@@ -60,6 +62,8 @@ data class ActivityItem(val kind: Kind, val text: String, val time: Long = Syste
 @SuppressLint("StaticFieldLeak") // holds the Application context only
 object LinkManager {
     private const val TAG = "Conduit"
+    private const val MIN_BACKOFF = 3_000L
+    private const val MAX_BACKOFF = 5 * 60_000L
     const val SERVICE_TYPE = "_conduit._tcp."
 
     lateinit var context: Context
@@ -97,8 +101,14 @@ object LinkManager {
         // Reconnect straight away when Wi-Fi comes back.
         val cm = context.getSystemService(ConnectivityManager::class.java)
         cm.registerDefaultNetworkCallback(object : ConnectivityManager.NetworkCallback() {
-            override fun onAvailable(network: Network) { wake.trySend(Unit) }
+            override fun onAvailable(network: Network) { kick() }
+            override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) {
+                val local = caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) || caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)
+                if (local != onLocalNetwork) { onLocalNetwork = local; if (local) kick() }
+            }
+            override fun onLost(network: Network) { onLocalNetwork = isOnLocalNetwork() }
         })
+        onLocalNetwork = isOnLocalNetwork()
     }
 
     val isConnected get() = control?.isOpen == true
@@ -132,7 +142,20 @@ object LinkManager {
         _state.value = LinkState()
     }
 
-    fun kick() { wake.trySend(Unit) }
+    /** Retry now (network change, unlock, app opened) and reset the back-off. */
+    fun kick() { resetBackoff = true; wake.trySend(Unit) }
+
+    @Volatile private var resetBackoff = false
+    @Volatile private var onLocalNetwork = true
+
+    /** The Mac is only reachable over Wi-Fi/Ethernet; on mobile data we sleep instead of retrying. */
+    private fun isOnLocalNetwork(): Boolean {
+        val cm = context.getSystemService(ConnectivityManager::class.java)
+        val caps = cm.getNetworkCapabilities(cm.activeNetwork) ?: return false
+        return caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) || caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)
+    }
+
+    private fun powerSave(): Boolean = context.getSystemService(PowerManager::class.java)?.isPowerSaveMode == true
 
     /** For screenshot tests and previews only. */
     fun previewState(state: LinkState, activity: List<ActivityItem> = emptyList()) {
@@ -177,56 +200,72 @@ object LinkManager {
     // ---- Connection loop ---------------------------------------------------
 
     private suspend fun runLoop() {
-        var backoff = 2000L
+        var backoff = MIN_BACKOFF
         while (scope.isActive) {
             val mac = pairing.load()
             if (mac == null) {
                 _state.update { it.copy(paired = false, connected = false, detail = "Not paired") }
                 return
             }
-            _state.update { it.copy(detail = "Looking for ${mac.name}…") }
-            val found = discover(mac.id, 3500)
-            val candidates = buildList {
-                found?.let { add(it) }
-                mac.hosts.forEach { add(it to mac.port) }
-            }.distinct()
+            if (resetBackoff) { backoff = MIN_BACKOFF; resetBackoff = false }
 
-            var conn: Connection? = null
-            for ((host, port) in candidates) {
-                try {
-                    conn = Connection.open(host, port, Channel.CONTROL, mac.key, pairing.deviceId, deviceName())
-                    currentHost = host
-                    currentPort = port
-                    pairing.updateHost(host, port)
-                    break
-                } catch (e: Exception) {
-                    Log.i(TAG, "connect $host:$port failed: ${e.message}")
-                }
+            // Off Wi-Fi the Mac can't be reached: sleep until the network changes instead of polling.
+            if (!onLocalNetwork) {
+                _state.update { it.copy(connected = false, detail = "Waiting for Wi-Fi") }
+                wake.receive()
+                continue
             }
 
-            if (conn != null) {
-                backoff = 2000L
-                control = conn
+            _state.update { it.copy(detail = "Connecting to ${mac.name}…") }
+            // Cheapest first: the last address that worked. Only scan the network (mDNS) if that fails.
+            var conn = tryConnect(mac, mac.hosts.map { it to mac.port })
+            if (conn == null) {
+                _state.update { it.copy(detail = "Looking for ${mac.name}…") }
+                discover(mac.id, 3500)?.let { found -> conn = tryConnect(mac, listOf(found)) }
+            }
+
+            val c = conn
+            if (c != null) {
+                backoff = MIN_BACKOFF
+                control = c
                 _state.update { it.copy(connected = true, host = currentHost ?: "", detail = "Connected to ${mac.name}") }
                 log(ActivityItem.Kind.CONNECTED, "Connected to ${mac.name}")
                 onConnected()
-                readLoop(conn)
+                readLoop(c)
                 control = null
                 onDisconnected() // before clearing state: stop() checks the mirroring/camera flags
                 _state.update { it.copy(connected = false, detail = "Disconnected — reconnecting") }
                 log(ActivityItem.Kind.DISCONNECTED, "Lost connection to ${mac.name}")
             } else {
-                _state.update { it.copy(connected = false, detail = "Can't reach ${mac.name}. Is it on the same Wi-Fi?") }
+                _state.update { it.copy(connected = false, detail = "Can't reach ${mac.name}. Is it awake and on the same Wi-Fi?") }
             }
             withTimeoutOrNull(backoff) { wake.receive() }
-            backoff = (backoff * 2).coerceAtMost(30000L)
+            // Back off up to 5 minutes (longer in Battery Saver); unlocking the phone or a network change retries at once.
+            backoff = (backoff * 2).coerceAtMost(if (powerSave()) 15 * 60_000L else MAX_BACKOFF)
         }
     }
 
+    private fun tryConnect(mac: PairedMac, candidates: List<Pair<String, Int>>): Connection? {
+        for ((host, port) in candidates.distinct()) {
+            try {
+                val c = Connection.open(host, port, Channel.CONTROL, mac.key, pairing.deviceId, deviceName())
+                currentHost = host
+                currentPort = port
+                pairing.updateHost(host, port)
+                return c
+            } catch (e: Exception) {
+                Log.i(TAG, "connect $host:$port failed: ${e.message}")
+            }
+        }
+        return null
+    }
+
     private suspend fun readLoop(conn: Connection) {
+        // Keepalive: one tiny packet every 90 s (3 min in Battery Saver). The Mac doesn't ping back
+        // on its own, so the radio isn't woken from both ends.
         val pinger = scope.launch {
             while (isActive && conn.isOpen) {
-                delay(20000)
+                delay(if (powerSave()) 180_000 else 90_000)
                 runCatching { conn.send("ping") }
             }
         }
@@ -261,7 +300,7 @@ object LinkManager {
         }
         StatusReporter.sendNow(context)
         NotificationMirror.instance?.sendAllActive()
-        MediaHandler.sendCurrent()
+        MediaHandler.resendAll()
     }
 
     private fun onDisconnected() {

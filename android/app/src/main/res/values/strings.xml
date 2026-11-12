@@ -2,6 +2,7 @@
     <string name="app_name">Conduit</string>
     <string name="share_label">Send to Mac</string>
     <string name="tile_label">Send clipboard</string>
+    <string name="mirror_tile_label">Mirror to Mac</string>
     <string name="accessibility_label">Conduit remote control</string>
     <string name="accessibility_description">Lets your paired Mac tap, swipe and type on this phone while you mirror the screen. Conduit only performs the actions you take on your Mac and does not read or store screen content.</string>
 </resources>

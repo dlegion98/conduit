@@ -56,7 +56,7 @@ class Connection private constructor(
             try {
                 socket.tcpNoDelay = true
                 socket.keepAlive = true
-                socket.connect(InetSocketAddress(host, port), 4000)
+                socket.connect(InetSocketAddress(host, port), 2500)
                 socket.soTimeout = 15000 // handshake timeout; control channel resets it after auth
                 val input = DataInputStream(BufferedInputStream(socket.getInputStream(), 64 * 1024))
                 val output = DataOutputStream(BufferedOutputStream(socket.getOutputStream(), 64 * 1024))
@@ -68,7 +68,7 @@ class Connection private constructor(
                 if (reply !is SecureChannel.Frame.Json || JSONObject(reply.text).optString("type") != "auth-ok") {
                     throw IOException("Mac rejected the connection")
                 }
-                socket.soTimeout = if (channel == Channel.CONTROL) 60000 else 0
+                socket.soTimeout = if (channel == Channel.CONTROL) 420_000 else 0 // > keepalive interval
                 return Connection(socket, secure)
             } catch (e: Exception) {
                 runCatching { socket.close() }

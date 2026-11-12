@@ -23,6 +23,7 @@ import java.io.ByteArrayOutputStream
 class NotificationMirror : NotificationListenerService() {
 
     private val iconCache = LruCache<String, String>(64)
+    private val iconsSent = java.util.Collections.synchronizedSet(HashSet<String>())
 
     override fun onListenerConnected() {
         instance = this
@@ -36,17 +37,28 @@ class NotificationMirror : NotificationListenerService() {
         MediaHandler.detach()
     }
 
+    private val lastSent = LruCache<String, Int>(200)
+
     override fun onNotificationPosted(sbn: StatusBarNotification) {
-        if (shouldMirror(sbn)) send(sbn)
+        if (!shouldMirror(sbn)) return
+        // Apps often re-post the same notification; only send when what you'd see changed.
+        val e = sbn.notification.extras
+        val sig = listOf(e.getCharSequence(Notification.EXTRA_TITLE), e.getCharSequence(Notification.EXTRA_TEXT),
+            e.getCharSequence(Notification.EXTRA_BIG_TEXT), sbn.notification.actions?.size).hashCode()
+        if (lastSent.get(sbn.key) == sig) return
+        lastSent.put(sbn.key, sig)
+        send(sbn)
     }
 
     override fun onNotificationRemoved(sbn: StatusBarNotification) {
         if (sbn.packageName == packageName) return
+        lastSent.remove(sbn.key)
         LinkManager.send("notification-removed") { put("key", sbn.key) }
     }
 
     fun sendAllActive() {
         if (!LinkManager.isConnected) return
+        iconsSent.clear() // new connection: the Mac may have restarted
         runCatching { activeNotifications }.getOrNull()?.filter(::shouldMirror)?.forEach(::send)
     }
 
@@ -82,7 +94,8 @@ class NotificationMirror : NotificationListenerService() {
             put("text", text)
             put("time", sbn.postTime)
             put("actions", actions)
-            iconFor(sbn.packageName)?.let { put("icon", it) }
+            // The Mac caches icons per app, so each icon crosses the network once per connection.
+            if (iconsSent.add(sbn.packageName)) iconFor(sbn.packageName)?.let { put("icon", it) }
         }
     }
 

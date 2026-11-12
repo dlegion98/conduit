@@ -86,6 +86,8 @@ final class AppModel: ObservableObject {
     @Published var seenApps: [String: String] = [:] // pkg -> label
 
     private(set) var control: PeerConnection?
+    private var iconCache: [String: NSImage] = [:]
+    private var warnedLowBattery = false
     private var lastSeen = Date()
     private var watchdog: Timer?
 
@@ -106,9 +108,11 @@ final class AppModel: ObservableObject {
         NotificationsBridge.shared.setUp()
         ClipboardSync.shared.start()
         MacStatus.shared.start()
-        watchdog = Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { [weak self] _ in
+        // The phone sends a keepalive every 90 s (3 min in Battery Saver). The Mac never pings on its own,
+        // so the phone's radio isn't woken from this end; it only drops links that have gone quiet.
+        watchdog = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             guard let self, let c = self.control else { return }
-            if Date().timeIntervalSince(self.lastSeen) > 70 { c.close() } else { c.send(type: "ping") }
+            if Date().timeIntervalSince(self.lastSeen) > 420 { c.close() }
         }
     }
 
@@ -171,14 +175,23 @@ final class AppModel: ObservableObject {
         case "status":
             battery = msg.int("battery")
             charging = msg.bool("charging")
+            if battery >= 0 && battery <= 15 && !charging {
+                if !warnedLowBattery {
+                    warnedLowBattery = true
+                    NotificationsBridge.shared.postInfo(title: "\(phoneName) battery low", body: "\(battery)% left — charge it to keep the link going")
+                }
+            } else if battery > 20 || charging {
+                warnedLowBattery = false
+            }
         case "notification":
             let n = PhoneNotification(
                 id: msg.str("key"), pkg: msg.str("pkg"), app: msg.str("app"),
                 title: msg.str("title"), text: msg.str("text"),
                 time: Date(timeIntervalSince1970: msg.double("time") / 1000),
                 actions: msg.array("actions").map { .init(index: $0.int("index"), title: $0.str("title"), reply: $0.bool("reply")) },
-                icon: NSImage.fromBase64(msg.str("icon"))
+                icon: NSImage.fromBase64(msg.str("icon")) ?? iconCache[msg.str("pkg")]
             )
+            if let icon = n.icon { iconCache[n.pkg] = icon } // the phone sends each app's icon once
             seenApps[n.pkg] = n.app
             notifications.removeAll { $0.id == n.id }
             notifications.insert(n, at: 0)

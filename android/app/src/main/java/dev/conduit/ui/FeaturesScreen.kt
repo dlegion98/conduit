@@ -74,9 +74,15 @@ fun FeaturesScreen() {
             }
         }
 
+        SectionLabel("Battery")
+        ConduitCard(padding = 4.dp) {
+            ListItemRow(Icons.Default.Eco, "Light on battery", "One tiny keepalive every 90 s, nothing while you're off Wi-Fi, and longer gaps in Battery Saver")
+            ListItemRow(Icons.Default.Wifi, "Reconnects when it matters", "Straight away when you unlock the phone or rejoin Wi-Fi")
+        }
+
         SectionLabel("Shortcuts")
         ConduitCard(padding = 4.dp) {
-            ListItemRow(Icons.Default.ViewQuilt, "Quick Settings tile", "Add “Send clipboard” to your quick settings panel")
+            ListItemRow(Icons.Default.ViewQuilt, "Quick Settings tiles", "Add “Send clipboard” and “Mirror to Mac” to your quick settings panel")
             ListItemRow(Icons.Default.Share, "Share sheet", "Choose “Send to Mac” from any app to send files, links or text")
         }
 

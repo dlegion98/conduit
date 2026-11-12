@@ -23,6 +23,7 @@ object MediaHandler {
     private var controller: MediaController? = null
     private val main = Handler(Looper.getMainLooper())
     private var lastArtKey: String? = null
+    private var lastSig: String? = null
 
     private val sessionsListener = MediaSessionManager.OnActiveSessionsChangedListener { list ->
         pick(list ?: emptyList())
@@ -76,10 +77,14 @@ object MediaHandler {
         sendCurrent()
     }
 
+    /** Called on (re)connect: resend everything. */
+    fun resendAll() { lastSig = null; lastArtKey = null; sendCurrent() }
+
     fun sendCurrent() {
         val c = controller
         if (c == null) {
-            LinkManager.send("media") { put("active", false) }
+            if (lastSig != "none") LinkManager.send("media") { put("active", false) }
+            lastSig = "none"
             return
         }
         val md = c.metadata
@@ -87,6 +92,10 @@ object MediaHandler {
         val title = md?.getString(MediaMetadata.METADATA_KEY_TITLE) ?: ""
         val artist = md?.getString(MediaMetadata.METADATA_KEY_ARTIST) ?: md?.getString(MediaMetadata.METADATA_KEY_ALBUM_ARTIST) ?: ""
         val artKey = "${c.packageName}|$title|$artist"
+        val playing = state?.state == PlaybackState.STATE_PLAYING
+        val sig = "$artKey|$playing"
+        if (sig == lastSig) return // position ticks and repeated callbacks: nothing new to show
+        lastSig = sig
         LinkManager.send("media") {
             put("active", true)
             put("app", appLabel(c.packageName))
@@ -97,7 +106,8 @@ object MediaHandler {
             put("positionMs", state?.position ?: 0L)
             put("durationMs", md?.getLong(MediaMetadata.METADATA_KEY_DURATION) ?: 0L)
             // Only send artwork when the track changes, to keep updates small.
-            if (artKey != lastArtKey) {
+            val saver = LinkManager.context.getSystemService(android.os.PowerManager::class.java)?.isPowerSaveMode == true
+            if (artKey != lastArtKey && !saver) {
                 val art = md?.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART) ?: md?.getBitmap(MediaMetadata.METADATA_KEY_ART)
                 art?.let { put("art", jpeg(it)) }
             }

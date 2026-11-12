@@ -21,7 +21,7 @@ final class LinkServer {
             if let tcp = params.defaultProtocolStack.transportProtocol as? NWProtocolTCP.Options {
                 tcp.noDelay = true
                 tcp.enableKeepalive = true
-                tcp.keepaliveIdle = 15
+                tcp.keepaliveIdle = 300 // the app-level keepalive (90 s from the phone) does the real work
             }
             let l: NWListener
             if let fixed = NWEndpoint.Port(rawValue: Pairing.port), let attempt = try? NWListener(using: params, on: fixed) {

@@ -27,9 +27,11 @@ targets:
           - "Resources/Info.plist"
           - "Resources/Conduit.entitlements"
           - "Resources/Conduit-adhoc.entitlements"
+          - "Resources/AppIcon.svg"
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.conduit.app
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         PRODUCT_NAME: Conduit
         INFOPLIST_FILE: Conduit/Resources/Info.plist
         CODE_SIGN_ENTITLEMENTS: Conduit/Resources/Conduit.entitlements
