@@ -234,8 +234,14 @@ final class AppModel: ObservableObject {
                 send("sms-list-messages", ["threadId": t.threadId])
             }
         case "call":
+            let previous = call
             call = CallInfo(state: msg.str("state"), number: msg.str("number"), name: msg.str("name"))
             NotificationsBridge.shared.updateCall(call)
+            // Rang, then stopped without being answered: a missed call.
+            if previous.state == "ringing" && call.state == "idle" {
+                NotificationsBridge.shared.missedCall(previous.number.isEmpty ? call.number : previous.number,
+                                                      name: previous.name.isEmpty ? call.name : previous.name)
+            }
         case "media":
             var np = NowPlaying()
             np.active = msg.bool("active")
@@ -278,6 +284,12 @@ final class AppModel: ObservableObject {
     }
 
     func ring(_ on: Bool) { send("ring", ["on": on]) }
+
+    var unreadThreads: Int { threads.filter { !$0.read }.count }
+
+    func markRead(_ threadId: Int64) {
+        if let i = threads.firstIndex(where: { $0.threadId == threadId }) { threads[i].read = true }
+    }
 
     func media(_ action: String) { send("media-control", ["action": action]) }
 

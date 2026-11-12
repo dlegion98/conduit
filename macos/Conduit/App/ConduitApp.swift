@@ -48,6 +48,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         AppModel.shared.start()
         Updater.shared.start()
+        ServiceProvider.shared.register()
+        Hotkeys.shared.start()
         if UserDefaults.standard.object(forKey: "launchAtLoginSet") == nil {
             try? SMAppService.mainApp.register()
             UserDefaults.standard.set(true, forKey: "launchAtLoginSet")

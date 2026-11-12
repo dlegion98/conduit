@@ -74,6 +74,14 @@ fun FeaturesScreen() {
             }
         }
 
+        SectionLabel("Preferences")
+        var onlyLocked by remember { mutableStateOf(dev.conduit.net.Prefs.onlyWhenLocked(context)) }
+        ConduitCard(padding = 4.dp) {
+            ListItemRow(Icons.Default.PhonelinkLock, "Only when the phone is locked",
+                "Don't show phone notifications on the Mac while you're using the phone",
+                trailing = { Switch(checked = onlyLocked, onCheckedChange = { onlyLocked = it; dev.conduit.net.Prefs.setOnlyWhenLocked(context, it) }) })
+        }
+
         SectionLabel("Battery")
         ConduitCard(padding = 4.dp) {
             ListItemRow(Icons.Default.Eco, "Light on battery", "One tiny keepalive every 90 s, nothing while you're off Wi-Fi, and longer gaps in Battery Saver")

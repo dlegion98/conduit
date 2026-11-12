@@ -1,11 +1,11 @@
 name: Build & release
+# Every branch is built and tested; only main publishes a release (which the apps auto-update to).
 on:
   push:
-    branches: [main]
   workflow_dispatch:
 permissions:
   contents: write
-concurrency: { group: release, cancel-in-progress: false }
+concurrency: { group: "build-${{ github.ref }}", cancel-in-progress: false }
 
 jobs:
   version:
@@ -110,6 +110,7 @@ jobs:
 
   publish:
     needs: [version, android, macos]
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4

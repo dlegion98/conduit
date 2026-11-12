@@ -41,6 +41,7 @@ class NotificationMirror : NotificationListenerService() {
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
         if (!shouldMirror(sbn)) return
+        if (dev.conduit.net.Prefs.onlyWhenLocked(this) && phoneInUse()) return
         // Apps often re-post the same notification; only send when what you'd see changed.
         val e = sbn.notification.extras
         val sig = listOf(e.getCharSequence(Notification.EXTRA_TITLE), e.getCharSequence(Notification.EXTRA_TEXT),
@@ -54,6 +55,12 @@ class NotificationMirror : NotificationListenerService() {
         if (sbn.packageName == packageName) return
         lastSent.remove(sbn.key)
         LinkManager.send("notification-removed") { put("key", sbn.key) }
+    }
+
+    private fun phoneInUse(): Boolean {
+        val keyguard = getSystemService(android.app.KeyguardManager::class.java)
+        val power = getSystemService(android.os.PowerManager::class.java)
+        return power.isInteractive && !keyguard.isKeyguardLocked
     }
 
     fun sendAllActive() {

@@ -17,6 +17,7 @@ final class NotificationsBridge: NSObject, UNUserNotificationCenterDelegate {
     private static let callId = "conduit.call"
     private static let callCategory = "conduit.call"
     private static let fileCategory = "conduit.file"
+    private static let missedCategory = "conduit.missed"
 
     func setUp() {
         center.delegate = self
@@ -34,6 +35,12 @@ final class NotificationsBridge: NSObject, UNUserNotificationCenterDelegate {
             actions: [UNNotificationAction(identifier: "reveal", title: "Show in Finder", options: [])],
             intentIdentifiers: [], options: []
         )
+        let missed = UNNotificationCategory(
+            identifier: Self.missedCategory,
+            actions: [UNNotificationAction(identifier: "callback", title: "Call Back", options: [])],
+            intentIdentifiers: [], options: []
+        )
+        categories[Self.missedCategory] = missed
         categories[Self.callCategory] = call
         categories[Self.fileCategory] = file
         center.setNotificationCategories(Set(categories.values))
@@ -104,6 +111,15 @@ final class NotificationsBridge: NSObject, UNUserNotificationCenterDelegate {
         }
     }
 
+    func missedCall(_ number: String, name: String) {
+        let content = UNMutableNotificationContent()
+        content.title = "Missed call"
+        content.body = name.isEmpty ? (number.isEmpty ? "Unknown caller" : number) : "\(name) · \(number)"
+        content.categoryIdentifier = Self.missedCategory
+        content.userInfo = ["number": number]
+        center.add(UNNotificationRequest(identifier: "missed-\(UUID().uuidString)", content: content, trigger: nil))
+    }
+
     func clearCall() {
         center.removeDeliveredNotifications(withIdentifiers: [Self.callId])
     }
@@ -140,6 +156,10 @@ final class NotificationsBridge: NSObject, UNUserNotificationCenterDelegate {
                 if action == "answer" { model.answerCall() }
                 if action == "decline" { model.declineCall() }
             }
+            return
+        }
+        if let number = info["number"] as? String {
+            if action == "callback" && !number.isEmpty { DispatchQueue.main.async { model.dial(number) } }
             return
         }
         if let path = info["file"] as? String {

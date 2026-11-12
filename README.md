@@ -24,6 +24,10 @@ end-to-end encrypted (AES-256-GCM) with a key exchanged by QR code. See `PROTOCO
 | ➕ | **Phone controls the Mac** | Trackpad (move, tap, two-finger tap to right-click, two-finger scroll, hold-then-move to drag), keyboard, arrows, ⌘Tab, Spotlight, Lock, Mission Control, media and volume keys, and a slide clicker. |
 | ➕ | **Find my phone / battery** | Ring the phone at full volume, even on silent. The phone's battery shows in the menu bar and the Mac's battery shows on the phone. |
 
+**Also:** missed-call alerts, Send to Phone in the Mac Services menu, global shortcuts (⌥⌘M/T/F/U), saving mirror
+screenshots, low-battery alerts both ways, Quick Settings tiles, and in-app updates for both apps. See `CHANGELOG.md`
+and `ROADMAP.md`.
+
 ## Build the Android app
 
 1. Open `android/` in Android Studio and let Gradle sync. If Studio offers to upgrade AGP/Gradle, accept.

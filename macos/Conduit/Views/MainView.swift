@@ -20,7 +20,9 @@ struct MainView: View {
     var body: some View {
         NavigationSplitView {
             List(Section.allCases, selection: $section) { s in
-                Label(s.rawValue, systemImage: s.symbol).tag(s)
+                Label(s.rawValue, systemImage: s.symbol)
+                    .badge(s == .messages ? model.unreadThreads : (s == .notifications ? model.notifications.count : 0))
+                    .tag(s)
             }
             .navigationSplitViewColumnWidth(min: 160, ideal: 180)
             .safeAreaInset(edge: .bottom) { phoneCard.padding(10) }
@@ -123,7 +125,7 @@ struct MessagesView: View {
         .onAppear { if model.connected { model.send("sms-list-threads") } }
         .onChange(of: model.connected) { _, now in if now { model.send("sms-list-threads") } }
         .onChange(of: selected) { _, id in
-            if let id { composing = false; model.send("sms-list-messages", ["threadId": id]) }
+            if let id { composing = false; model.markRead(id); model.send("sms-list-messages", ["threadId": id]) }
         }
         .navigationTitle("Messages")
     }

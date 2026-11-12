@@ -1,5 +1,6 @@
 import AppKit
 import AVFoundation
+import CoreImage
 import SwiftUI
 
 /// Phone screen in a Mac window. Click = tap, drag = swipe, hold = long-press,
@@ -121,10 +122,36 @@ final class MirrorController: NSObject, NSWindowDelegate {
     }
 
     func global(_ key: String) { AppModel.shared.send("input", ["action": "global", "key": key]) }
+
+    /// Keeps the phone window above other windows.
+    func togglePin() {
+        guard let window else { return }
+        let pinned = window.level != .floating
+        window.level = pinned ? .floating : .normal
+        state.pinned = pinned
+    }
+
+    /// Saves the current phone frame as a PNG on the Desktop.
+    func saveScreenshot() {
+        guard let png = screenView.currentFramePNG() else { return }
+        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd 'at' HH.mm.ss"
+        let desktop = FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask)[0]
+        let url = desktop.appendingPathComponent("Phone Screenshot \(f.string(from: Date())).png")
+        do {
+            try png.write(to: url)
+            NSSound(named: "Grab")?.play()
+            state.flash.toggle()
+            NotificationsBridge.shared.postInfo(title: "Screenshot saved", body: url.lastPathComponent, fileURL: url)
+        } catch {
+            AppModel.shared.lastError = "Couldn't save screenshot"
+        }
+    }
 }
 
 final class MirrorState: ObservableObject {
     @Published var status: String?
+    @Published var pinned = false
+    @Published var flash = false
 }
 
 private struct MirrorRoot: View {
@@ -150,6 +177,9 @@ private struct MirrorRoot: View {
                 bar("bell", "Notifications") { MirrorController.shared.global("notifications") }
                 bar("camera.viewfinder", "Screenshot") { MirrorController.shared.global("screenshot") }
                 bar("lock", "Lock") { MirrorController.shared.global("lock") }
+                Divider().frame(height: 18)
+                bar("square.and.arrow.down", "Save screenshot to Desktop (⌘S)") { MirrorController.shared.saveScreenshot() }
+                bar(state.pinned ? "pin.fill" : "pin", state.pinned ? "Stop keeping on top" : "Keep on top") { MirrorController.shared.togglePin() }
             }
             .frame(height: 44)
             .frame(maxWidth: .infinity)
@@ -178,6 +208,14 @@ final class MirrorScreenView: NSView {
     var onInput: (([String: Any]) -> Void)?
 
     private let displayLayer = AVSampleBufferDisplayLayer()
+    private var lastFrame: CVPixelBuffer?
+    private let ciContext = CIContext()
+
+    func currentFramePNG() -> Data? {
+        guard let frame = lastFrame else { return nil }
+        let image = CIImage(cvPixelBuffer: frame)
+        return ciContext.pngRepresentation(of: image, format: .RGBA8, colorSpace: CGColorSpace(name: CGColorSpace.sRGB)!)
+    }
     private var frameSize = CGSize(width: 1080, height: 2400)
     private var downPoint: CGPoint?
     private var downTime = Date()
@@ -221,6 +259,7 @@ final class MirrorScreenView: NSView {
         }
         let size = CGSize(width: CVPixelBufferGetWidth(pixel), height: CVPixelBufferGetHeight(pixel))
         DispatchQueue.main.async {
+            self.lastFrame = pixel
             self.frameSize = size
             if self.displayLayer.status == .failed { self.displayLayer.flush() }
             self.displayLayer.enqueue(sample)
@@ -313,7 +352,9 @@ final class MirrorScreenView: NSView {
 
     override func keyDown(with event: NSEvent) {
         if event.modifierFlags.contains(.command) {
-            if event.charactersIgnoringModifiers == "v", let text = NSPasteboard.general.string(forType: .string) {
+            if event.charactersIgnoringModifiers == "s" {
+                MirrorController.shared.saveScreenshot()
+            } else if event.charactersIgnoringModifiers == "v", let text = NSPasteboard.general.string(forType: .string) {
                 onInput?(["action": "text", "text": text])
             } else if event.charactersIgnoringModifiers == "w" {
                 window?.performClose(nil)

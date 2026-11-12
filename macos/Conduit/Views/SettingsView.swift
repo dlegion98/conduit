@@ -8,6 +8,7 @@ struct SettingsView: View {
     @AppStorage("clipboardSync") private var clipboardSync = true
     @AppStorage("cameraFacing") private var cameraFacing = "back"
     @AppStorage("autoUpdateCheck") private var autoUpdate = true
+    @AppStorage("hotkeysEnabled") private var hotkeys = true
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var accessibility = InputInjector.shared.hasAccess
 
@@ -37,6 +38,15 @@ struct SettingsView: View {
                     UpdateRow(compact: false)
                     Toggle("Check for updates automatically", isOn: $autoUpdate)
                         .onChange(of: autoUpdate) { _, on in Updater.shared.autoCheck = on }
+                }
+                Section("Keyboard shortcuts") {
+                    Toggle("Enable shortcuts (work from any app)", isOn: $hotkeys)
+                        .onChange(of: hotkeys) { _, on in Hotkeys.shared.enabled = on }
+                    ForEach(Hotkeys.shared.shortcuts, id: \.id) { s in
+                        LabeledContent(s.label) { Text(s.display).monospaced().foregroundStyle(.secondary) }
+                    }
+                    Text("Also: select files, a link or text in any app → right-click → Services → Send to Phone.")
+                        .font(.caption).foregroundStyle(.secondary)
                 }
                 Section("Control this Mac from the phone") {
                     HStack {
