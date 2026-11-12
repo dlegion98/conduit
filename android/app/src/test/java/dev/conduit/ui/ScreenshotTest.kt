@@ -2,10 +2,7 @@ package dev.conduit.ui
 
 import android.graphics.Bitmap
 import androidx.activity.ComponentActivity
-import androidx.compose.ui.graphics.asAndroidBitmap
-import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import androidx.compose.ui.test.onRoot
 import dev.conduit.net.ActivityItem
 import dev.conduit.net.LinkManager
 import dev.conduit.net.LinkState
@@ -42,9 +39,14 @@ class ScreenshotTest {
         compose.mainClock.autoAdvance = false
         compose.setContent { ConduitTheme(dark = dark) { if (state.paired) App(startTab = tab) else PairScreen() } }
         compose.mainClock.advanceTimeBy(700)
-        val bmp = compose.onRoot().captureToImage().asAndroidBitmap()
+        // Draw the window directly: the animated link line never lets Compose go "idle".
+        var bmp: Bitmap? = null
+        compose.runOnUiThread {
+            val v = compose.activity.window.decorView
+            bmp = Bitmap.createBitmap(v.width, v.height, Bitmap.Config.ARGB_8888).also { v.draw(android.graphics.Canvas(it)) }
+        }
         val dir = File("build/screenshots").apply { mkdirs() }
-        File(dir, "$name.png").outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        File(dir, "$name.png").outputStream().use { bmp!!.compress(Bitmap.CompressFormat.PNG, 100, it) }
     }
 
     @Test @Config(qualifiers = "w412dp-h915dp-xxhdpi")
