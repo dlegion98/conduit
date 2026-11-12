@@ -1,0 +1,37 @@
+name: Publish builds
+on:
+  workflow_run:
+    workflows: ["Android APK", "macOS app"]
+    types: [completed]
+    branches: [main]
+permissions:
+  contents: write
+  actions: read
+concurrency: { group: publish, cancel-in-progress: false }
+jobs:
+  publish:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: out
+      - run: |
+          find out -type f
+          mkdir -p files
+          find out -name '*.apk' -exec cp {} files/Conduit.apk \;
+          find out -name 'Conduit-macOS.zip' -exec cp {} files/Conduit-macOS.zip \;
+          ls -la files
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Latest build
+          target_commitish: ${{ github.event.workflow_run.head_sha }}
+          body: |
+            Built from ${{ github.event.workflow_run.head_sha }}.
+            - **Conduit.apk**: install on your phone (allow installs from your browser/files app).
+            - **Conduit-macOS.zip**: unzip, move Conduit.app to Applications, right-click → Open the first time.
+          files: files/*
+          fail_on_unmatched_files: false
