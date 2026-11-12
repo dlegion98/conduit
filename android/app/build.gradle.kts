@@ -63,6 +63,8 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     debugImplementation("androidx.compose.ui:ui-tooling")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
+    // Foldables: hinge position and posture (tabletop / book)
+    implementation("androidx.window:window:1.4.0")
     // Google code scanner: QR scanning without a camera permission (needs Play services)
     implementation("com.google.android.gms:play-services-code-scanner:16.1.0")
 

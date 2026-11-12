@@ -85,7 +85,9 @@ fun HomeScreen(onOpenRemote: () -> Unit, onOpenFeatures: () -> Unit, wide: Boole
 
     val phoneName = remember { LinkManager.deviceName().removeSuffix("'s phone").take(18) }
 
-    val linkSection: @Composable ColumnScope.() -> Unit = {
+    val fold = LocalFold.current
+
+    val heroSection: @Composable ColumnScope.() -> Unit = {
         UpdateBanner()
         ConnectionHero(state, phoneName = phoneName, phoneBattery = battery)
 
@@ -97,8 +99,20 @@ fun HomeScreen(onOpenRemote: () -> Unit, onOpenFeatures: () -> Unit, wide: Boole
             }
         }
 
+        // Standing half-folded on a desk is the perfect webcam angle: offer it.
+        if (fold.posture == Posture.Tabletop && connected && !state.camera) {
+            Spacer(Modifier.height(12.dp))
+            ConduitCard(padding = 6.dp) {
+                ListItemRow(Icons.Default.Videocam, "Standing up? Be the webcam",
+                    "Use the back camera as “Conduit Camera” on ${state.macName}",
+                    trailing = { Button(onClick = ::toggleCamera) { Text("Start") } })
+            }
+        }
+    }
+
+    val actionsSection: @Composable ColumnScope.() -> Unit = {
         SectionLabel("Do more with ${state.macName.ifEmpty { "your Mac" }}")
-        val columns = if (wide) 3 else 2
+        val columns = if (wide || fold.posture == Posture.Tabletop) 3 else 2
         actions.chunked(columns).forEach { row ->
             Row(Modifier.fillMaxWidth().padding(bottom = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 row.forEach { (icon, text, act) ->
@@ -108,6 +122,8 @@ fun HomeScreen(onOpenRemote: () -> Unit, onOpenFeatures: () -> Unit, wide: Boole
             }
         }
     }
+
+    val linkSection: @Composable ColumnScope.() -> Unit = { heroSection(); actionsSection() }
 
     val statusSection: @Composable ColumnScope.() -> Unit = {
         SectionLabel("Syncing", trailing = {
@@ -136,6 +152,32 @@ fun HomeScreen(onOpenRemote: () -> Unit, onOpenFeatures: () -> Unit, wide: Boole
         Spacer(Modifier.height(24.dp))
     }
 
+    if (fold.posture == Posture.Tabletop || fold.posture == Posture.Book) {
+        HingeSplit(
+            Modifier.padding(horizontal = 18.dp),
+            // Tabletop: status above the hinge, controls within thumb reach below it.
+            // Book: one page each.
+            first = {
+                Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(top = 12.dp, end = if (fold.posture == Posture.Book) 6.dp else 0.dp),
+                    content = if (fold.posture == Posture.Tabletop) heroSection else linkSection)
+            },
+            second = {
+                Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(start = if (fold.posture == Posture.Book) 6.dp else 0.dp)) {
+                    if (fold.posture == Posture.Tabletop) actionsSection()
+                    statusSection()
+                }
+            },
+            fallback = { HomeColumns(wide, linkSection, statusSection) },
+        )
+    } else {
+        HomeColumns(wide, linkSection, statusSection)
+    }
+
+    if (linkDialog) OpenLinkDialog(onDismiss = { linkDialog = false })
+}
+
+@Composable
+private fun HomeColumns(wide: Boolean, linkSection: @Composable ColumnScope.() -> Unit, statusSection: @Composable ColumnScope.() -> Unit) {
     if (wide) {
         // Unfolded: the link and actions on the left, what's syncing and recent activity on the right.
         Column(Modifier.fillMaxSize().padding(horizontal = 22.dp)) {
@@ -154,8 +196,6 @@ fun HomeScreen(onOpenRemote: () -> Unit, onOpenFeatures: () -> Unit, wide: Boole
             statusSection()
         }
     }
-
-    if (linkDialog) OpenLinkDialog(onDismiss = { linkDialog = false })
 }
 
 @Composable

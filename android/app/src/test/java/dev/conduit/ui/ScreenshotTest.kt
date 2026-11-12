@@ -34,10 +34,14 @@ class ScreenshotTest {
         ActivityItem(ActivityItem.Kind.CONNECTED, "Connected to MacBook Pro"),
     )
 
-    private fun shot(name: String, state: LinkState, tab: Int = 0, dark: Boolean = true) {
+    private fun shot(name: String, state: LinkState, tab: Int = 0, dark: Boolean = true, fold: FoldInfo = FoldInfo()) {
         LinkManager.previewState(state, activity)
         compose.mainClock.autoAdvance = false
-        compose.setContent { ConduitTheme(dark = dark) { App(startTab = tab) } }
+        compose.setContent {
+            ConduitTheme(dark = dark) {
+                androidx.compose.runtime.CompositionLocalProvider(LocalFold provides fold) { App(startTab = tab) }
+            }
+        }
         compose.mainClock.advanceTimeBy(700)
         // Draw the window directly: the animated link line never lets Compose go "idle".
         var bmp: Bitmap? = null
@@ -75,4 +79,20 @@ class ScreenshotTest {
 
     @Test @Config(qualifiers = "w880dp-h800dp-xhdpi")
     fun remoteUnfolded() = shot("9-remote-unfolded", connected, tab = 1)
+
+    // Fold 7 inner screen half-folded. xhdpi: 880dp x 800dp = 1760 x 1600 px.
+    private val tabletop = FoldInfo(Posture.Tabletop, android.graphics.Rect(0, 800, 1760, 800))
+    private val book = FoldInfo(Posture.Book, android.graphics.Rect(880, 0, 880, 1600))
+
+    @Test @Config(qualifiers = "w880dp-h800dp-xhdpi")
+    fun remoteTabletop() = shot("10-remote-tabletop", connected, tab = 1, fold = tabletop)
+
+    @Test @Config(qualifiers = "w880dp-h800dp-xhdpi")
+    fun homeTabletop() = shot("11-home-tabletop", connected, fold = tabletop)
+
+    @Test @Config(qualifiers = "w880dp-h800dp-xhdpi")
+    fun remoteBook() = shot("12-remote-book", connected, tab = 1, fold = book)
+
+    @Test @Config(qualifiers = "w880dp-h800dp-xhdpi")
+    fun homeBook() = shot("13-home-book", connected, fold = book)
 }

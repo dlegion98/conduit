@@ -32,19 +32,67 @@ private fun media(k: String) { LinkManager.send("mac-input") { put("kind", "medi
 fun RemoteScreen(wide: Boolean) {
     val state by LinkManager.state.collectAsStateWithLifecycle()
     var mode by rememberSaveable { mutableIntStateOf(0) }
+    val fold = LocalFold.current
 
+    // Half-folded on a desk: a tiny laptop. Keys on the upper half, trackpad on the lower half.
+    if (state.connected && fold.posture == Posture.Tabletop) {
+        HingeSplit(
+            Modifier.padding(horizontal = 14.dp),
+            first = {
+                Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(top = 10.dp, bottom = 6.dp)) {
+                    LaptopModeHeader(state.macName)
+                    Spacer(Modifier.height(10.dp))
+                    KeysPanel()
+                    Spacer(Modifier.height(12.dp))
+                    MediaPanel()
+                }
+            },
+            second = { Box(Modifier.fillMaxSize().padding(bottom = 10.dp)) { Trackpad() } },
+            fallback = { RemoteScreenContent(state.connected, state.macName, wide, mode) { mode = it } },
+        )
+        return
+    }
+    // Held like a book: trackpad on one page, keys on the other.
+    if (state.connected && fold.posture == Posture.Book) {
+        HingeSplit(
+            Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            first = { Box(Modifier.fillMaxSize().padding(end = 4.dp)) { Trackpad() } },
+            second = { Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(start = 4.dp)) { KeysPanel(); Spacer(Modifier.height(12.dp)); MediaPanel() } },
+            fallback = { RemoteScreenContent(state.connected, state.macName, wide, mode) { mode = it } },
+        )
+        return
+    }
+    RemoteScreenContent(state.connected, state.macName, wide, mode) { mode = it }
+}
+
+@Composable
+private fun LaptopModeHeader(macName: String) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 4.dp)) {
+        Icon(Icons.Default.Laptop, null, tint = dev.conduit.ui.theme.ConduitBlue)
+        Spacer(Modifier.width(10.dp))
+        Column {
+            Text("Laptop mode", style = MaterialTheme.typography.titleLarge, color = Conduit.colors.text)
+            Text("Controlling ${macName.ifEmpty { "your Mac" }} · open the phone flat for the full remote",
+                style = MaterialTheme.typography.labelMedium, color = Conduit.colors.muted)
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun RemoteScreenContent(connected: Boolean, macName: String, wide: Boolean, mode: Int, setMode: (Int) -> Unit) {
     Column(Modifier.fillMaxSize().padding(horizontal = 18.dp)) {
         Spacer(Modifier.height(14.dp))
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 4.dp, bottom = 14.dp)) {
             Column(Modifier.weight(1f)) {
                 Text("Remote", style = MaterialTheme.typography.headlineMedium, color = Conduit.colors.text)
-                Text(if (state.connected) "Controlling ${state.macName}" else "Connect to your Mac to use the remote",
+                Text(if (connected) "Controlling $macName · tip: half-fold the phone on a desk for laptop mode" else "Connect to your Mac to use the remote",
                     style = MaterialTheme.typography.bodyMedium, color = Conduit.colors.muted)
             }
         }
-        if (!state.connected) {
+        if (!connected) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("Waiting for ${state.macName.ifEmpty { "your Mac" }}…", color = Conduit.colors.muted)
+                Text("Waiting for ${macName.ifEmpty { "your Mac" }}…", color = Conduit.colors.muted)
             }
             return@Column
         }
@@ -56,7 +104,7 @@ fun RemoteScreen(wide: Boolean) {
         } else {
             SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
                 listOf("Trackpad", "Keyboard", "Media").forEachIndexed { i, label ->
-                    SegmentedButton(selected = mode == i, onClick = { mode = i }, shape = SegmentedButtonDefaults.itemShape(i, 3)) { Text(label) }
+                    SegmentedButton(selected = mode == i, onClick = { setMode(i) }, shape = SegmentedButtonDefaults.itemShape(i, 3)) { Text(label) }
                 }
             }
             Spacer(Modifier.height(14.dp))

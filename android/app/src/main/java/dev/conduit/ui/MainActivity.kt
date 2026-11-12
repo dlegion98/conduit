@@ -21,7 +21,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import androidx.window.layout.WindowInfoTracker
+import kotlinx.coroutines.launch
 import dev.conduit.feature.Launcher
 import dev.conduit.net.LinkManager
 import dev.conduit.service.LinkService
@@ -29,10 +34,19 @@ import dev.conduit.ui.theme.Conduit
 import dev.conduit.ui.theme.ConduitTheme
 
 class MainActivity : ComponentActivity() {
+    private var fold by mutableStateOf(FoldInfo())
+
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-        setContent { ConduitTheme { App() } }
+        // Follow the hinge: tabletop / book posture changes re-lay out the screens live.
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                WindowInfoTracker.getOrCreate(this@MainActivity).windowLayoutInfo(this@MainActivity)
+                    .collect { fold = it.toFoldInfo() }
+            }
+        }
+        setContent { ConduitTheme { CompositionLocalProvider(LocalFold provides fold) { App() } } }
     }
 
     override fun onResume() {
