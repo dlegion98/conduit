@@ -59,6 +59,22 @@ If `xcodegen` complains about the `system-extension` target type, update XcodeGe
 Alternatively, create the project in Xcode yourself: a macOS App target plus a *Camera Extension* target, with the
 files from `Conduit/` and `ConduitCamera/` and the plists/entitlements already provided.
 
+## Security warnings (Play Protect and Gatekeeper)
+
+**Android, "App scan recommended":** Play Protect shows this for apps it hasn't seen that come from outside the
+Play Store. Tap **Scan app**. To stop it for good, register the app with Google's free Android developer verification:
+1. Create an account at the Android Developer Console (a limited distribution account is for personal use, up to 20 devices).
+2. Register package `dev.conduit` with the signing-key SHA-256
+   `DB:A4:2D:3C:4F:1C:F7:85:8A:F3:00:41:D5:F4:AB:9F:B3:CF:99:31:DE:C9:50:7C:6B:7D:54:81:43:52:37:28`.
+3. If the console asks you to upload an APK with a snippet, save the snippet as the repo secret `ANDROID_ADI_SNIPPET`.
+   The next build includes it as `assets/adi-registration.properties`. Upload that build's `Conduit.apk`.
+
+**Mac, "Apple could not verify…":** add these secrets to sign with Developer ID and notarize (needs the Apple Developer Program):
+`MAC_DEVID_P12_B64` + `MAC_DEVID_PASSWORD` (a *Developer ID Application* certificate exported as .p12, base64), and
+`ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8_B64` (an App Store Connect API key with the Developer role; the .p8 file, base64).
+Without them, the Mac build uses a self-signed certificate, so only the very first install shows the warning:
+in-app updates never do.
+
 ## Things Android or macOS won't allow (and what Conduit does instead)
 
 - **Screen sharing needs a tap on the phone every session.** This is an Android security rule.

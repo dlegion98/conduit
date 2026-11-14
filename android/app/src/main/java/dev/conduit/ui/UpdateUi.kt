@@ -47,8 +47,13 @@ private fun UpdateContent(state: Updater.State, compact: Boolean) {
     val current = remember { Updater.currentVersion(context) }
     var needsPermission by remember { mutableStateOf(false) }
 
+    var explainScan by remember { mutableStateOf(false) }
+    val prefs = remember { context.getSharedPreferences("updates", android.content.Context.MODE_PRIVATE) }
+
     fun install() {
         if (!Updater.canInstall(context)) { needsPermission = true; return }
+        // First time only: tell people about Google's scan prompt before it appears.
+        if (!prefs.getBoolean("scanExplained", false)) { explainScan = true; return }
         Updater.install(context)
     }
 
@@ -80,7 +85,7 @@ private fun UpdateContent(state: Updater.State, compact: Boolean) {
                 when (state) {
                     is Updater.State.Available -> state.notes.ifBlank { "Installs in place. Your pairing and settings are kept." }
                     is Updater.State.Downloading -> "${(state.progress * 100).toInt()}%"
-                    Updater.State.Installing -> "Conduit will restart on the new version"
+                    Updater.State.Installing -> "If Google Play Protect asks, tap “Scan app”. Conduit restarts on the new version"
                     is Updater.State.Failed -> state.message
                     else -> "Version $current · updates install from inside the app"
                 },
@@ -99,6 +104,25 @@ private fun UpdateContent(state: Updater.State, compact: Boolean) {
         Spacer(Modifier.height(12.dp))
         LinearProgressIndicator(progress = { state.progress }, modifier = Modifier.fillMaxWidth().clip(CircleShape))
     }
+
+    if (explainScan) AlertDialog(
+        onDismissRequest = { explainScan = false },
+        icon = { Icon(Icons.Default.Shield, null) },
+        title = { Text("Google may scan this update") },
+        text = {
+            Text("Conduit isn't from the Play Store, so Google Play Protect may show “App scan recommended”. " +
+                "Tap “Scan app”. It checks the update with Google and installs it a few seconds later. " +
+                "Don't tap “Don't install app”, or the update will be cancelled.")
+        },
+        confirmButton = {
+            Button(onClick = {
+                explainScan = false
+                prefs.edit().putBoolean("scanExplained", true).apply()
+                Updater.install(context)
+            }) { Text("Got it, update") }
+        },
+        dismissButton = { TextButton(onClick = { explainScan = false }) { Text("Not now") } },
+    )
 
     if (needsPermission) AlertDialog(
         onDismissRequest = { needsPermission = false },

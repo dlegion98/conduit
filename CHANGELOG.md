@@ -2,6 +2,11 @@
 
 Newest first. Each release's build number is the commit count on `main`.
 
+## Fewer security warnings
+- **Android:** before an update, a one-time explanation of Google Play Protect's "App scan recommended" prompt (tap **Scan app**).
+  Builds can now include Google's developer-verification snippet, so Play Protect recognises Conduit once it's registered.
+- **Mac:** builds are signed with Developer ID and notarized by Apple once those credentials are added, so there's no Gatekeeper warning on install.
+
 ## Foldable support
 - **Laptop mode:** half-fold the phone on a desk and the Remote turns into a tiny laptop, with keys above the hinge and a full-width trackpad below.
 - **Book posture:** hold it half-open like a book, and Home and the Remote split cleanly at the hinge.
