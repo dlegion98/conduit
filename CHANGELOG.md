@@ -2,6 +2,13 @@
 
 Newest first. Each release's build number is the commit count on `main`.
 
+## Week of 2026-11-14
+- **Contact photos in Messages** on the Mac, with coloured initials for contacts without a photo.
+- **Read on the Mac, cleared on the phone:** opening a conversation on the Mac clears its notification on the phone, and the unread dot no longer comes back after a refresh. Right-click a thread for **Mark as Read**.
+- **Clipboard history:** the last 20 things copied on the Mac or sent from the phone, in the menu bar panel. Click one to copy it again, or send it to the phone. Kept in memory only; turn it off in Settings.
+- **Notification history:** an **On Phone / History** switch, search, and a per-app filter in the Notifications view.
+- **Fix:** notifications no longer pop up a second time on the Mac every time the phone reconnects.
+
 ## Fewer security warnings
 - **Android:** before an update, a one-time explanation of Google Play Protect's "App scan recommended" prompt (tap **Scan app**).
   Builds can now include Google's developer-verification snippet, so Play Protect recognises Conduit once it's registered.

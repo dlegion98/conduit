@@ -12,10 +12,10 @@ end-to-end encrypted (AES-256-GCM) with a key exchanged by QR code. See `PROTOCO
 
 | | Feature | How |
 |---|---|---|
-| 🔔 | **Notifications on the Mac** | Mirrored into Notification Center. Reply inline, use action buttons ("Mark as read"), and dismissing on either side clears both. Mute apps per-app in Settings. Clicking one opens the phone's screen. |
-| 📋 | **Clipboard sync** | Text and images. Mac → phone is automatic. Phone → Mac uses the **Send clipboard** Quick Settings tile, the notification button or Share. Password-manager copies are skipped. |
+| 🔔 | **Notifications on the Mac** | Mirrored into Notification Center. Reply inline, use action buttons ("Mark as read"), and dismissing on either side clears both. Mute apps per-app in Settings. Clicking one opens the phone's screen. Search the session's history and filter by app. |
+| 📋 | **Clipboard sync** | Text and images. Mac → phone is automatic. Phone → Mac uses the **Send clipboard** Quick Settings tile, the notification button or Share. Password-manager copies are skipped. The menu bar keeps a history of the last 20 items. |
 | 📁 | **File transfer** | Drop files on the menu bar panel, the Files tab or the Dock icon. On the phone: Share → **Send to Mac**. Files land in `~/Downloads/Conduit` / `Download/Conduit`. |
-| 💬 | **SMS** | Read threads, send texts, and get new messages live in a Messages window. |
+| 💬 | **SMS** | Read threads, send texts, and get new messages live in a Messages window, with contact photos. Reading a thread on the Mac clears its notification on the phone. |
 | 🖥️ | **Screen mirroring + control** | Hardware H.264 at up to 60 fps. Click = tap, drag = swipe, hold = long-press, scroll = swipe, right-click = Back, type to enter text, ⌘V pastes. Back/Home/Recents/Notifications/Screenshot/Lock buttons. The window follows fold/unfold and rotation. |
 | 📷 | **Phone as webcam** | "Conduit Camera" appears in FaceTime, Zoom, Meet, Teams and OBS. Back or front lens, 1080p30. |
 | ➕ | **Calls** | Incoming-call alert on the Mac with Answer/Decline, and you can place calls from Messages. Call audio stays on the phone or its headset. |
