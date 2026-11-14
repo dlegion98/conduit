@@ -210,13 +210,15 @@ final class AppModel: ObservableObject {
             )
             if let icon = n.icon { iconCache[n.pkg] = icon } // the phone sends each app's icon once
             seenApps[n.pkg] = n.app
+            // After a reconnect the phone re-sends everything still in its shade; don't banner those again.
+            let alreadyShown = notificationHistory.contains { $0.id == n.id && $0.title == n.title && $0.text == n.text }
             notifications.removeAll { $0.id == n.id }
             notifications.insert(n, at: 0)
             if notifications.count > 200 { notifications.removeLast(notifications.count - 200) }
             notificationHistory.removeAll { $0.id == n.id }
             notificationHistory.insert(n, at: 0)
             if notificationHistory.count > 500 { notificationHistory.removeLast(notificationHistory.count - 500) }
-            if !mutedApps.contains(n.pkg) { NotificationsBridge.shared.post(n) }
+            if !mutedApps.contains(n.pkg) && !alreadyShown { NotificationsBridge.shared.post(n) }
         case "notification-removed":
             let key = msg.str("key")
             notifications.removeAll { $0.id == key }
