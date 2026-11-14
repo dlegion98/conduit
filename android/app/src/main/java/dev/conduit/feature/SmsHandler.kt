@@ -140,6 +140,40 @@ object SmsHandler {
         }
     }
 
+    /** Answers the Mac's `contact-photos` request: one small JPEG per address ("" when there's no photo). */
+    fun sendContactPhotos(context: Context, addresses: JSONArray?) {
+        if (addresses == null) return
+        val photos = JSONArray()
+        for (i in 0 until minOf(addresses.length(), 40)) {
+            val address = addresses.optString(i)
+            if (address.isBlank()) continue
+            photos.put(JSONObject().put("address", address).put("photo", Contacts.photoFor(context, address)))
+        }
+        LinkManager.send("contact-photos") { put("photos", photos) }
+    }
+
+    /**
+     * A thread was read on the Mac. Android only lets the default SMS app change the read flag,
+     * so try that quietly, then clear the conversation's notification from the messaging app
+     * (which also clears the mirrored copy on the Mac).
+     */
+    fun markRead(context: Context, threadId: Long, address: String, name: String) {
+        runCatching {
+            val values = android.content.ContentValues().apply { put(Telephony.Sms.READ, 1); put(Telephony.Sms.SEEN, 1) }
+            context.contentResolver.update(
+                Telephony.Sms.Inbox.CONTENT_URI, values,
+                "${Telephony.Sms.THREAD_ID} = ? AND ${Telephony.Sms.READ} = 0", arrayOf(threadId.toString())
+            )
+        }
+        val packages = setOfNotNull(
+            runCatching { Telephony.Sms.getDefaultSmsPackage(context) }.getOrNull(),
+            "com.google.android.apps.messaging",
+            "com.samsung.android.messaging",
+        )
+        val names = listOf(name, address, Contacts.nameFor(context, address)).filter { it.isNotBlank() }
+        NotificationMirror.instance?.dismissConversation(packages, names)
+    }
+
     fun sendSms(context: Context, address: String, body: String) {
         if (!allowed(context, Manifest.permission.SEND_SMS)) {
             LinkManager.send("sms-sent") { put("address", address); put("ok", false); put("error", "Allow SMS permission in Conduit on your phone") }

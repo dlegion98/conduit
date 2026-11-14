@@ -33,6 +33,15 @@ struct SmsMessage: Identifiable, Equatable {
     var pending = false
 }
 
+/// One entry in the menu bar's clipboard history (kept in memory only, never written to disk).
+struct ClipItem: Identifiable, Equatable {
+    let id = UUID()
+    let text: String?
+    let image: NSImage?
+    let fromPhone: Bool
+    let date = Date()
+}
+
 struct NowPlaying: Equatable {
     var active = false
     var app = ""
@@ -84,6 +93,14 @@ final class AppModel: ObservableObject {
     @Published var lastError: String?
     @Published var mutedApps: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "mutedApps") ?? [])
     @Published var seenApps: [String: String] = [:] // pkg -> label
+    /// Every notification seen this session, including ones since cleared (newest first, capped).
+    @Published var notificationHistory: [PhoneNotification] = []
+    @Published var clipboardHistory: [ClipItem] = []
+    @Published var contactPhotos: [String: NSImage] = [:] // phone number -> photo
+    private var photosRequested: Set<String> = []
+    /// threadId -> date (ms) of the newest message read on the Mac, so a refresh from the phone
+    /// (whose read flag only the default SMS app can change) doesn't bring the unread dot back.
+    private var readUpTo: [String: Double] = UserDefaults.standard.dictionary(forKey: "smsReadUpTo") as? [String: Double] ?? [:]
 
     private(set) var control: PeerConnection?
     private var iconCache: [String: NSImage] = [:]
@@ -196,6 +213,9 @@ final class AppModel: ObservableObject {
             notifications.removeAll { $0.id == n.id }
             notifications.insert(n, at: 0)
             if notifications.count > 200 { notifications.removeLast(notifications.count - 200) }
+            notificationHistory.removeAll { $0.id == n.id }
+            notificationHistory.insert(n, at: 0)
+            if notificationHistory.count > 500 { notificationHistory.removeLast(notificationHistory.count - 500) }
             if !mutedApps.contains(n.pkg) { NotificationsBridge.shared.post(n) }
         case "notification-removed":
             let key = msg.str("key")
@@ -204,9 +224,18 @@ final class AppModel: ObservableObject {
         case "clipboard":
             ClipboardSync.shared.applyRemote(msg)
         case "sms-threads":
-            threads = msg.array("threads").map {
-                SmsThread(threadId: $0.int64("threadId"), address: $0.str("address"), name: $0.str("name"),
-                          snippet: $0.str("snippet"), date: Date(timeIntervalSince1970: $0.double("date") / 1000), read: $0.bool("read"))
+            let marks = readUpTo
+            threads = msg.array("threads").map { (t: [String: Any]) -> SmsThread in
+                let tid = t.int64("threadId"), date = t.double("date")
+                let readHere = (marks[String(tid)] ?? 0) >= date
+                return SmsThread(threadId: tid, address: t.str("address"), name: t.str("name"),
+                                 snippet: t.str("snippet"), date: Date(timeIntervalSince1970: date / 1000), read: t.bool("read") || readHere)
+            }
+            requestContactPhotos()
+        case "contact-photos":
+            for p in msg.array("photos") {
+                let address = p.str("address")
+                if let image = NSImage.fromBase64(p.str("photo")) { contactPhotos[address] = image }
             }
         case "sms-messages":
             let tid = msg.int64("threadId")
@@ -223,6 +252,7 @@ final class AppModel: ObservableObject {
             } else {
                 threads.insert(SmsThread(threadId: tid, address: msg.str("address"), name: msg.str("name"),
                                          snippet: msg.str("body"), date: date, read: false), at: 0)
+                requestContactPhotos()
             }
             if messages[tid] != nil {
                 messages[tid]?.append(SmsMessage(id: UUID().uuidString, body: msg.str("body"), date: date, outgoing: false))
@@ -287,8 +317,69 @@ final class AppModel: ObservableObject {
 
     var unreadThreads: Int { threads.filter { !$0.read }.count }
 
+    /// Marks a thread read here, remembers it across refreshes, and asks the phone to clear
+    /// the conversation's notification (and its read flag, where Android allows it).
     func markRead(_ threadId: Int64) {
-        if let i = threads.firstIndex(where: { $0.threadId == threadId }) { threads[i].read = true }
+        guard let i = threads.firstIndex(where: { $0.threadId == threadId }) else { return }
+        let wasUnread = !threads[i].read
+        threads[i].read = true
+        let t = threads[i]
+        readUpTo[String(threadId)] = (t.date.timeIntervalSince1970 * 1000).rounded()
+        if readUpTo.count > 400 {
+            // Keep the most recent marks only.
+            let keep = readUpTo.sorted { $0.value > $1.value }.prefix(300)
+            readUpTo = Dictionary(uniqueKeysWithValues: keep.map { ($0.key, $0.value) })
+        }
+        UserDefaults.standard.set(readUpTo, forKey: "smsReadUpTo")
+        if wasUnread { send("sms-mark-read", ["threadId": threadId, "address": t.address, "name": t.name]) }
+    }
+
+    /// Asks the phone for contact photos it hasn't been asked about yet (once per number per launch).
+    private func requestContactPhotos() {
+        guard connected else { return }
+        let wanted = threads.filter { !$0.name.isEmpty && !photosRequested.contains($0.address) }.map(\.address)
+        guard !wanted.isEmpty else { return }
+        for batch in stride(from: 0, to: wanted.count, by: 40).map({ Array(wanted[$0..<min($0 + 40, wanted.count)]) }) {
+            photosRequested.formUnion(batch)
+            send("contact-photos", ["addresses": batch])
+        }
+    }
+
+    // MARK: Clipboard history
+
+    func recordClip(text: String?, image: NSImage?, fromPhone: Bool) {
+        guard UserDefaults.standard.object(forKey: "clipboardHistory") as? Bool ?? true else { return }
+        if let text {
+            guard !text.isEmpty else { return }
+            clipboardHistory.removeAll { $0.text == text }
+        } else if image == nil {
+            return
+        }
+        clipboardHistory.insert(ClipItem(text: text, image: image, fromPhone: fromPhone), at: 0)
+        // At most 20 items, and at most 5 of them images (they can be large).
+        var images = 0
+        clipboardHistory = clipboardHistory.filter { item in
+            if item.image != nil { images += 1; return images <= 5 }
+            return true
+        }
+        if clipboardHistory.count > 20 { clipboardHistory.removeLast(clipboardHistory.count - 20) }
+    }
+
+    /// Puts a history item back on the Mac clipboard (clipboard sync then sends it to the phone as usual).
+    func copyClip(_ item: ClipItem) {
+        let pb = NSPasteboard.general
+        pb.clearContents()
+        if let text = item.text { pb.setString(text, forType: .string) } else if let image = item.image { pb.writeObjects([image]) }
+        ClipboardSync.shared.historyIgnore = pb.changeCount
+        if let i = clipboardHistory.firstIndex(of: item) { clipboardHistory.insert(clipboardHistory.remove(at: i), at: 0) }
+    }
+
+    func sendClipToPhone(_ item: ClipItem) {
+        if let text = item.text {
+            send("clipboard", ["text": text])
+        } else if let png = item.image?.pngData(), png.count < 8 * 1024 * 1024 {
+            send("clipboard", ["image": png.base64EncodedString()])
+        }
     }
 
     func media(_ action: String) { send("media-control", ["action": action]) }

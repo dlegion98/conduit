@@ -17,6 +17,7 @@ struct MenuView: View {
                 actions
                 if model.nowPlaying.active { NowPlayingCard(np: model.nowPlaying) }
                 if let t = model.transfers.first(where: { !$0.done && $0.error == nil }) { TransferRow(t: t) }
+                if !model.clipboardHistory.isEmpty { ClipboardHistorySection() }
                 recent
             }
             UpdateRow(compact: true)
@@ -165,6 +166,67 @@ struct MenuView: View {
     }
 }
 
+/// The last 20 things copied on either side. Click one to copy it again; the arrow sends it to the phone.
+struct ClipboardHistorySection: View {
+    @EnvironmentObject var model: AppModel
+    @AppStorage("clipboardHistoryExpanded") private var expanded = false
+
+    var body: some View {
+        DisclosureGroup(isExpanded: $expanded) {
+            ScrollView {
+                VStack(spacing: 2) {
+                    ForEach(model.clipboardHistory) { item in ClipRow(item: item) }
+                }
+            }
+            .frame(maxHeight: 220)
+            HStack {
+                Text("Kept until Conduit quits. Passwords are never saved.").font(.caption2).foregroundStyle(.tertiary)
+                Spacer()
+                Button("Clear") { model.clipboardHistory.removeAll() }.buttonStyle(.borderless).font(.caption)
+            }
+        } label: {
+            Text("Clipboard history").font(.caption).foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+                .onTapGesture { withAnimation { expanded.toggle() } }
+        }
+    }
+}
+
+private struct ClipRow: View {
+    let item: ClipItem
+    @EnvironmentObject var model: AppModel
+    @State private var hovering = false
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: item.fromPhone ? "iphone.gen3" : "laptopcomputer")
+                .font(.caption).foregroundStyle(.secondary).frame(width: 16)
+                .help(item.fromPhone ? "From your phone" : "Copied on this Mac")
+            if let text = item.text {
+                Text(text.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "\n", with: " "))
+                    .font(.callout).lineLimit(1).truncationMode(.tail)
+            } else if let image = item.image {
+                Image(nsImage: image).resizable().scaledToFit().frame(height: 28)
+                    .clipShape(RoundedRectangle(cornerRadius: 4))
+                Text("Image").font(.callout).foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 4)
+            Text(item.date, style: .relative).font(.caption2).foregroundStyle(.tertiary).lineLimit(1)
+            Button { model.sendClipToPhone(item) } label: { Image(systemName: "arrow.up.forward.app") }
+                .buttonStyle(.borderless).help("Send to phone")
+                .disabled(!model.connected)
+                .opacity(hovering ? 1 : 0.35)
+        }
+        .padding(.vertical, 4).padding(.horizontal, 6)
+        .background(hovering ? Color.secondary.opacity(0.12) : .clear, in: RoundedRectangle(cornerRadius: 6))
+        .contentShape(Rectangle())
+        .onHover { hovering = $0 }
+        .onTapGesture { model.copyClip(item) }
+        .help("Click to copy")
+    }
+}
+
 struct ActionTile: View {
     let symbol: String
     let title: String
@@ -236,6 +298,7 @@ struct TransferRow: View {
 struct NotificationRow: View {
     let n: PhoneNotification
     var compact = false
+    var actionable = true
     @EnvironmentObject var model: AppModel
     @State private var reply = ""
 
@@ -253,7 +316,7 @@ struct NotificationRow: View {
                 }
                 Text(n.title).font(compact ? .callout.weight(.semibold) : .headline).lineLimit(1)
                 Text(n.text).font(compact ? .caption : .body).foregroundStyle(.secondary).lineLimit(compact ? 2 : 6)
-                if !compact {
+                if !compact && actionable {
                     HStack {
                         ForEach(n.actions.filter { !$0.reply }, id: \.index) { a in
                             Button(a.title) { model.send("notification-action", ["key": n.id, "index": a.index]) }

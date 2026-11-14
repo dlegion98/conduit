@@ -142,6 +142,32 @@ class NotificationMirror : NotificationListenerService() {
         runCatching { cancelNotification(key) }
     }
 
+    /**
+     * Clears a messaging app's notifications for one conversation: those from [packages] whose
+     * title is one of [names] (a contact name or the phone number, compared by trailing digits).
+     */
+    fun dismissConversation(packages: Set<String>, names: List<String>) {
+        if (names.isEmpty()) return
+        val wanted = names.map { it.trim() }
+        val wantedDigits = names.map(::digits).filter { it.length >= 6 }
+        val active = runCatching { activeNotifications }.getOrNull() ?: return
+        for (sbn in active) {
+            if (sbn.packageName !in packages || sbn.isOngoing) continue
+            val e = sbn.notification.extras
+            val titles = listOfNotNull(
+                e.getCharSequence(Notification.EXTRA_CONVERSATION_TITLE)?.toString(),
+                e.getCharSequence(Notification.EXTRA_TITLE)?.toString(),
+            ).map { it.trim() }.filter { it.isNotEmpty() }
+            val match = titles.any { t ->
+                wanted.any { it.equals(t, ignoreCase = true) } ||
+                    digits(t).let { d -> d.length >= 6 && wantedDigits.any { w -> d.takeLast(9) == w.takeLast(9) } }
+            }
+            if (match) runCatching { cancelNotification(sbn.key) }
+        }
+    }
+
+    private fun digits(s: String) = s.filter(Char::isDigit)
+
     private fun appLabel(pkg: String): String = runCatching {
         packageManager.getApplicationLabel(packageManager.getApplicationInfo(pkg, 0)).toString()
     }.getOrDefault(pkg)

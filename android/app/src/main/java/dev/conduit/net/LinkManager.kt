@@ -320,6 +320,8 @@ object LinkManager {
             "sms-list-threads" -> SmsHandler.sendThreads(context)
             "sms-list-messages" -> SmsHandler.sendMessages(context, msg.getLong("threadId"))
             "sms-send" -> SmsHandler.sendSms(context, msg.getString("address"), msg.getString("body"))
+            "sms-mark-read" -> SmsHandler.markRead(context, msg.optLong("threadId"), msg.optString("address"), msg.optString("name"))
+            "contact-photos" -> SmsHandler.sendContactPhotos(context, msg.optJSONArray("addresses"))
             "call-action" -> CallHandler.action(context, msg.getString("action"))
             "call-dial" -> Launcher.dial(context, msg.getString("number"))
             "media-control" -> MediaHandler.control(msg.getString("action"))

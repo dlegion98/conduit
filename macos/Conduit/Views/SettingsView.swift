@@ -6,6 +6,7 @@ struct SettingsView: View {
     @EnvironmentObject var model: AppModel
     @Environment(\.openWindow) private var openWindow
     @AppStorage("clipboardSync") private var clipboardSync = true
+    @AppStorage("clipboardHistory") private var clipboardHistory = true
     @AppStorage("cameraFacing") private var cameraFacing = "back"
     @AppStorage("autoUpdateCheck") private var autoUpdate = true
     @AppStorage("hotkeysEnabled") private var hotkeys = true
@@ -31,7 +32,9 @@ struct SettingsView: View {
                             if on { try? SMAppService.mainApp.register() } else { try? SMAppService.mainApp.unregister() }
                         }
                     Toggle("Sync clipboard to phone", isOn: $clipboardSync)
-                    Text("Copying on your Mac sends it to your phone. To send from the phone, use its “Send clipboard” tile or notification button. Passwords copied from password managers are skipped.")
+                    Toggle("Keep clipboard history in the menu bar", isOn: $clipboardHistory)
+                        .onChange(of: clipboardHistory) { _, on in if !on { model.clipboardHistory.removeAll() } }
+                    Text("Copying on your Mac sends it to your phone. To send from the phone, use its “Send clipboard” tile or notification button. Passwords copied from password managers are skipped. The history keeps the last 20 items in memory only, until Conduit quits.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 Section("Updates") {

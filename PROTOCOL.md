@@ -67,6 +67,7 @@ closes.
 | `open-url` | `url` |
 | `mac-input` | `kind` (`move`,`drag`,`down`,`up`,`click`,`rightclick`,`doubleclick`,`scroll`,`text`,`key`,`media`), `dx, dy, text, key` |
 | `ring-state` | `ringing` |
+| `contact-photos` | `photos:[{address, photo}]` (b64 96 px JPEG, `""` = no photo) — reply to the Mac's request |
 | `error` | `feature, message` |
 | `ping` / `pong` | — |
 
@@ -81,6 +82,8 @@ closes.
 | `sms-list-threads` | — |
 | `sms-list-messages` | `threadId` |
 | `sms-send` | `address, body` |
+| `sms-mark-read` | `threadId, address, name` — read on the Mac; the phone clears that conversation's notification |
+| `contact-photos` | `addresses:[…]` (≤ 40) — asks for contact photos |
 | `call-action` | `action` (`answer`/`decline`) |
 | `call-dial` | `number` |
 | `media-control` | `action` (`toggle`,`play`,`pause`,`next`,`previous`) |

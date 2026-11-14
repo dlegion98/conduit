@@ -90,17 +90,23 @@ struct MessagesView: View {
                 }
                 .padding(8)
                 List(filtered, selection: $selected) { t in
-                    VStack(alignment: .leading, spacing: 3) {
-                        HStack {
-                            if !t.read { Circle().fill(.blue).frame(width: 7, height: 7) }
-                            Text(t.displayName).font(.headline).lineLimit(1)
-                            Spacer()
-                            Text(t.date, format: .relative(presentation: .numeric)).font(.caption2).foregroundStyle(.secondary)
+                    HStack(alignment: .top, spacing: 9) {
+                        ContactAvatar(thread: t, size: 34)
+                        VStack(alignment: .leading, spacing: 3) {
+                            HStack {
+                                if !t.read { Circle().fill(.blue).frame(width: 7, height: 7) }
+                                Text(t.displayName).font(.headline).lineLimit(1)
+                                Spacer()
+                                Text(t.date, format: .relative(presentation: .numeric)).font(.caption2).foregroundStyle(.secondary)
+                            }
+                            Text(t.snippet).font(.callout).foregroundStyle(.secondary).lineLimit(2)
                         }
-                        Text(t.snippet).font(.callout).foregroundStyle(.secondary).lineLimit(2)
                     }
                     .padding(.vertical, 3)
                     .tag(t.threadId)
+                    .contextMenu {
+                        if !t.read { Button("Mark as Read") { model.markRead(t.threadId) } }
+                    }
                 }
                 .overlay {
                     if model.threads.isEmpty {
@@ -127,6 +133,10 @@ struct MessagesView: View {
         .onChange(of: selected) { _, id in
             if let id { composing = false; model.markRead(id); model.send("sms-list-messages", ["threadId": id]) }
         }
+        // A new message in the conversation you're looking at counts as read.
+        .onChange(of: model.threads.first(where: { $0.threadId == selected })?.date) { _, _ in
+            if let id = selected, NSApp.isActive, model.threads.first(where: { $0.threadId == id })?.read == false { model.markRead(id) }
+        }
         .navigationTitle("Messages")
     }
 }
@@ -139,6 +149,7 @@ struct ConversationView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
+                ContactAvatar(thread: thread, size: 32)
                 VStack(alignment: .leading) {
                     Text(thread.displayName).font(.headline)
                     if !thread.name.isEmpty { Text(thread.address).font(.caption).foregroundStyle(.secondary) }
@@ -183,6 +194,36 @@ struct ConversationView: View {
         guard !text.isEmpty else { return }
         model.sendSms(to: thread.address, body: text, threadId: thread.threadId)
         draft = ""
+    }
+}
+
+/// The contact's photo from the phone, or their initials (a person glyph for bare numbers).
+struct ContactAvatar: View {
+    let thread: SmsThread
+    let size: CGFloat
+    @EnvironmentObject var model: AppModel
+
+    private var initials: String {
+        let words = thread.name.split(separator: " ").filter { $0.first?.isLetter == true }
+        return String(words.prefix(2).compactMap(\.first)).uppercased()
+    }
+
+    var body: some View {
+        Group {
+            if let photo = model.contactPhotos[thread.address] {
+                Image(nsImage: photo).resizable().scaledToFill()
+            } else if !initials.isEmpty {
+                Text(initials).font(.system(size: size * 0.38, weight: .semibold)).foregroundStyle(.white)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color(hue: Double(thread.address.unicodeScalars.reduce(0) { ($0 &* 31 &+ Int($1.value)) % 360 }) / 360, saturation: 0.35, brightness: 0.7))
+            } else {
+                Image(systemName: "person.fill").font(.system(size: size * 0.45)).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color.secondary.opacity(0.18))
+            }
+        }
+        .frame(width: size, height: size)
+        .clipShape(Circle())
     }
 }
 
@@ -235,20 +276,76 @@ private struct NewMessageView: View {
 // MARK: - Notifications
 
 struct NotificationsView: View {
+    enum Scope: String, CaseIterable, Identifiable { case current = "On Phone", history = "History"; var id: String { rawValue } }
+
     @EnvironmentObject var model: AppModel
+    @State private var scope: Scope = .current
+    @State private var search = ""
+    @State private var app: String? // package name, nil = all apps
+
+    private var source: [PhoneNotification] { scope == .current ? model.notifications : model.notificationHistory }
+
+    private var filtered: [PhoneNotification] {
+        source.filter { n in
+            (app == nil || n.pkg == app) &&
+                (search.isEmpty || n.title.localizedCaseInsensitiveContains(search)
+                    || n.text.localizedCaseInsensitiveContains(search) || n.app.localizedCaseInsensitiveContains(search))
+        }
+    }
+
+    /// Apps in the current list, with counts, for the filter menu.
+    private var apps: [(pkg: String, name: String, count: Int)] {
+        Dictionary(grouping: source, by: \.pkg)
+            .map { (pkg: $0.key, name: $0.value.first?.app ?? $0.key, count: $0.value.count) }
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
 
     var body: some View {
-        List {
-            ForEach(model.notifications) { n in
-                NotificationRow(n: n).padding(.vertical, 4)
+        VStack(spacing: 0) {
+            HStack(spacing: 8) {
+                Picker("", selection: $scope) {
+                    ForEach(Scope.allCases) { Text($0.rawValue).tag($0) }
+                }
+                .pickerStyle(.segmented).labelsHidden().fixedSize()
+                TextField("Search notifications", text: $search).textFieldStyle(.roundedBorder)
+                Menu {
+                    Button("All Apps") { app = nil }
+                    Divider()
+                    ForEach(apps, id: \.pkg) { a in
+                        Button { app = a.pkg } label: { Text("\(a.name) (\(a.count))") }
+                    }
+                } label: {
+                    Label(apps.first(where: { $0.pkg == app })?.name ?? "All Apps", systemImage: "line.3.horizontal.decrease.circle")
+                }
+                .fixedSize()
+                if scope == .history {
+                    Button("Clear") { model.notificationHistory.removeAll() }
+                        .disabled(model.notificationHistory.isEmpty)
+                }
+            }
+            .padding(8)
+            Divider()
+            List {
+                ForEach(filtered) { n in
+                    // History items may already be gone from the phone, so they show without action buttons.
+                    let active = scope == .current || model.notifications.contains(where: { $0.id == n.id })
+                    NotificationRow(n: n, actionable: active).padding(.vertical, 4)
+                        .opacity(active ? 1 : 0.75)
+                }
+            }
+            .overlay {
+                if filtered.isEmpty {
+                    Text(emptyText).foregroundStyle(.secondary)
+                }
             }
         }
-        .overlay {
-            if model.notifications.isEmpty {
-                Text("No notifications from your phone").foregroundStyle(.secondary)
-            }
-        }
+        .onChange(of: scope) { _, _ in if let a = app, !source.contains(where: { $0.pkg == a }) { app = nil } }
         .navigationTitle("Notifications")
+    }
+
+    private var emptyText: String {
+        if !search.isEmpty || app != nil { return "No matching notifications" }
+        return scope == .current ? "No notifications from your phone" : "Notifications you get this session appear here"
     }
 }
 
