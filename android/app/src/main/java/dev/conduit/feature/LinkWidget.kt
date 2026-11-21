@@ -89,10 +89,10 @@ class LinkWidget : AppWidgetProvider() {
             }
             button(R.id.w_clip, R.id.w_clip_icon, R.id.w_clip_label, "Clipboard", false,
                 activity(context, 11, Intent(context, ClipboardActivity::class.java)))
-            button(R.id.w_mirror, R.id.w_mirror_icon, R.id.w_mirror_label, if (m.mirroring) "Stop" else "Mirror", m.mirroring,
+            button(R.id.w_mirror, R.id.w_mirror_icon, R.id.w_mirror_label, if (m.mirroring) "Stop mirror" else "Mirror", m.mirroring,
                 if (m.mirroring) broadcast(context, 12, ActionReceiver.ACTION_STOP_MIRROR)
                 else activity(context, 13, Intent(context, MirrorConsentActivity::class.java)))
-            button(R.id.w_find, R.id.w_find_icon, R.id.w_find_label, if (m.ringing) "Stop" else "Find Mac", m.ringing,
+            button(R.id.w_find, R.id.w_find_icon, R.id.w_find_label, if (m.ringing) "Stop sound" else "Find Mac", m.ringing,
                 broadcast(context, 14, if (m.ringing) ActionReceiver.ACTION_STOP_MAC_RING else ActionReceiver.ACTION_RING_MAC))
             return v
         }
