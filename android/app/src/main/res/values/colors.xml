@@ -1,4 +1,13 @@
 <resources>
     <color name="bg">#FF0E1116</color>
     <color name="accent">#FF4F8CFF</color>
+
+    <!-- Home-screen widget (light; dark in values-night) -->
+    <color name="widget_bg">#FFF3F5F9</color>
+    <color name="widget_button">#FFE2E7F0</color>
+    <color name="widget_ripple">#334F8CFF</color>
+    <color name="widget_text">#FF12161D</color>
+    <color name="widget_text_dim">#FF5E6675</color>
+    <color name="widget_ok">#FF1FA463</color>
+    <color name="widget_off">#FF9AA1AD</color>
 </resources>

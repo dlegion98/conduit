@@ -92,7 +92,7 @@ closes.
 | `ring` | `on` |
 | `mirror-start` | `maxSize, bitrate, fps` · `mirror-stop` |
 | `camera-start` | `facing` (`back`/`front`), `width, height, fps` · `camera-stop` |
-| `input` | `action` (`tap`,`longpress`,`gesture`,`global`,`text`,`backspace`,`enter`), `x, y` (0-1), `points:[[x,y],…]`, `durationMs`, `key` (`back`,`home`,`recents`,`notifications`,`quicksettings`,`lock`,`screenshot`), `text` |
+| `input` | `action` (`tap`,`longpress`,`gesture`,`global`,`text`,`backspace`,`enter`,`dpad`,`pinch`), `x, y` (0-1), `points:[[x,y],…]`, `durationMs`, `key` (`back`,`home`,`recents`,`notifications`,`quicksettings`,`lock`,`screenshot`; for `dpad`: `up`,`down`,`left`,`right`,`center`,`tab`), `text`, `shift` (`dpad`: extend the selection / Tab backwards), `scale` (`pinch`: > 1 zooms in, < 1 zooms out, around `x, y`). Older phones ignore `dpad` and `pinch`. |
 | `ping` / `pong` | — |
 
 ## Video channels (1 = mirror, 2 = camera)

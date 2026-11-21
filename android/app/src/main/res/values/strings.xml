@@ -5,4 +5,14 @@
     <string name="mirror_tile_label">Mirror to Mac</string>
     <string name="accessibility_label">Conduit remote control</string>
     <string name="accessibility_description">Lets your paired Mac tap, swipe and type on this phone while you mirror the screen. Conduit only performs the actions you take on your Mac and does not read or store screen content.</string>
+    <string name="widget_label">Conduit</string>
+    <string name="widget_description">Link status, plus quick buttons to send your clipboard, mirror the screen and find your Mac.</string>
+    <string name="widget_preview_title">MacBook Pro</string>
+    <string name="widget_preview_status">Connected · 82%</string>
+    <string name="widget_clipboard">Send clipboard to Mac</string>
+    <string name="widget_clipboard_short">Clipboard</string>
+    <string name="widget_mirror">Mirror screen to Mac</string>
+    <string name="widget_mirror_short">Mirror</string>
+    <string name="widget_find">Play a sound on the Mac</string>
+    <string name="widget_find_short">Find Mac</string>
 </resources>

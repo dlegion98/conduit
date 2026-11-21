@@ -26,6 +26,7 @@ class ConduitApp : Application() {
             )
         )
         LinkManager.init(this)
+        dev.conduit.feature.LinkWidget.observe(this)
         if (LinkManager.pairing.load() != null) {
             // Starting a foreground service can be refused if the process woke up in the
             // background (for example, when Android binds the notification listener).

@@ -2,6 +2,12 @@
 
 Newest first. Each release's build number is the commit count on `main`.
 
+## Week of 2026-11-21
+- **Home-screen widget** for Android: see whether the link is up and your Mac's battery, and tap to **send your clipboard**, **mirror the screen** or **find your Mac**. Long-press the home screen → Widgets → Conduit.
+- **Keyboard and trackpad in the mirror window:** arrow keys and Tab move around the phone like a D-pad (in a text field they move the cursor; hold Shift to select), and pinching on the trackpad pinch-zooms on the phone.
+- **Mirror window sizes:** the window remembers its size separately for the folded screen, the unfolded screen and landscape.
+- **Smoother remote:** taps on the Remote, trackpad and buttons are sent in the background, so a slow Wi-Fi moment can't freeze the app, and a failed send now reconnects cleanly instead of leaving a broken link.
+
 ## Week of 2026-11-14
 - **Contact photos in Messages** on the Mac, with coloured initials for contacts without a photo.
 - **Read on the Mac, cleared on the phone:** opening a conversation on the Mac clears its notification on the phone, and the unread dot no longer comes back after a refresh. Right-click a thread for **Mark as Read**.

@@ -28,7 +28,8 @@ class Connection private constructor(
     fun send(json: JSONObject) {
         try {
             secure.sendJson(json.toString())
-        } catch (e: IOException) {
+        } catch (e: Exception) {
+            // The frame counter has moved on, so the stream can't be trusted any more: reconnect.
             close(); throw e
         }
     }

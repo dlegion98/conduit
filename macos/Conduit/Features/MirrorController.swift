@@ -4,7 +4,8 @@ import CoreImage
 import SwiftUI
 
 /// Phone screen in a Mac window. Click = tap, drag = swipe, hold = long-press,
-/// scroll = swipe, right-click = Back, typing goes into the focused text field.
+/// scroll = swipe, pinch = pinch, right-click = Back, typing goes into the focused text field,
+/// arrow keys and Tab act as a D-pad.
 final class MirrorController: NSObject, NSWindowDelegate {
     static let shared = MirrorController()
 
@@ -91,11 +92,20 @@ final class MirrorController: NSObject, NSWindowDelegate {
     private func resize(to size: CGSize) {
         guard size.width > 0, size.height > 0, let window else { return }
         let changed = size != videoSize
+        let old = videoSize
         videoSize = size
         let toolbar: CGFloat = 44
         let screen = window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? .init(x: 0, y: 0, width: 1440, height: 900)
         let maxH = screen.height * 0.9, maxW = screen.width * 0.9
-        var h = min(maxH, changed ? maxH * 0.9 : window.frame.height) - toolbar
+        let current = window.contentRect(forFrameRect: window.frame).height - toolbar
+        var h = current
+        if changed {
+            // Folded, unfolded and landscape each remember the size you last gave them.
+            let remembered = UserDefaults.standard.double(forKey: Self.heightKey(for: size))
+            if remembered > 0 { h = remembered }
+            else if Self.layout(of: size) != Self.layout(of: old) { h = maxH * 0.9 - toolbar }
+        }
+        h = max(200, min(h, maxH - toolbar))
         var w = h * size.width / size.height
         if w > maxW { w = maxW; h = w * size.height / size.width }
         var frame = window.frame
@@ -112,6 +122,20 @@ final class MirrorController: NSObject, NSWindowDelegate {
         let h = content.height - toolbar
         let w = h * videoSize.width / max(videoSize.height, 1)
         return sender.frameRect(forContentRect: NSRect(x: 0, y: 0, width: w, height: content.height)).size
+    }
+
+    /// "tall" (folded / portrait), "square" (unfolded inner screen) or "wide" (landscape).
+    private static func layout(of size: CGSize) -> String {
+        let aspect = size.width / max(size.height, 1)
+        return aspect < 0.7 ? "tall" : aspect <= 1.4 ? "square" : "wide"
+    }
+
+    private static func heightKey(for size: CGSize) -> String { "mirrorHeight.\(layout(of: size))" }
+
+    func windowDidEndLiveResize(_ notification: Notification) {
+        guard let window else { return }
+        let h = window.contentRect(forFrameRect: window.frame).height - 44
+        if h > 0 { UserDefaults.standard.set(Double(h), forKey: Self.heightKey(for: videoSize)) }
     }
 
     func windowWillClose(_ notification: Notification) {
@@ -348,7 +372,39 @@ final class MirrorScreenView: NSView {
         scrollAnchor = nil
     }
 
+    // MARK: Pinch (trackpad) → two-finger pinch on the phone
+
+    private var pinchAnchor: CGPoint?
+    private var pinchScale: CGFloat = 1
+    private var pinchStart = Date()
+
+    override func magnify(with event: NSEvent) {
+        if event.phase.contains(.began) || pinchAnchor == nil {
+            pinchAnchor = normalized(event)
+            pinchScale = 1
+            pinchStart = Date()
+        }
+        pinchScale *= max(0.1, 1 + event.magnification)
+        if event.phase.contains(.ended) || event.phase.contains(.cancelled) { flushPinch() }
+    }
+
+    private func flushPinch() {
+        defer { pinchAnchor = nil; pinchScale = 1 }
+        guard let anchor = pinchAnchor, abs(pinchScale - 1) > 0.05 else { return }
+        let elapsed = Date().timeIntervalSince(pinchStart)
+        onInput?([
+            "action": "pinch",
+            "x": Double(min(max(anchor.x, 0), 1)), "y": Double(min(max(anchor.y, 0), 1)),
+            "scale": Double(min(max(pinchScale, 0.2), 5)),
+            "durationMs": Int(min(max(elapsed, 0.15), 1.2) * 1000),
+        ])
+    }
+
     // MARK: Keyboard
+
+    private func dpad(_ key: String, _ event: NSEvent) {
+        onInput?(["action": "dpad", "key": key, "shift": event.modifierFlags.contains(.shift)])
+    }
 
     override func keyDown(with event: NSEvent) {
         if event.modifierFlags.contains(.command) {
@@ -365,6 +421,12 @@ final class MirrorScreenView: NSView {
         case 51: onInput?(["action": "backspace"])          // delete
         case 36, 76: onInput?(["action": "enter"])          // return / enter
         case 53: onInput?(["action": "global", "key": "back"]) // escape
+        // Arrow keys and Tab move around like a D-pad (or move the cursor in a text field).
+        case 123: dpad("left", event)
+        case 124: dpad("right", event)
+        case 125: dpad("down", event)
+        case 126: dpad("up", event)
+        case 48: dpad("tab", event)
         default:
             if let chars = event.characters, !chars.isEmpty, chars.unicodeScalars.allSatisfy({ $0.value >= 32 && $0.value != 127 && !(0xF700...0xF8FF).contains($0.value) }) {
                 onInput?(["action": "text", "text": chars])

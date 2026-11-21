@@ -3,6 +3,7 @@ package dev.conduit.ui
 import android.graphics.Bitmap
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import dev.conduit.feature.LinkWidget
 import dev.conduit.net.ActivityItem
 import dev.conduit.net.LinkManager
 import dev.conduit.net.LinkState
@@ -95,4 +96,41 @@ class ScreenshotTest {
 
     @Test @Config(qualifiers = "w880dp-h800dp-xhdpi")
     fun homeBook() = shot("13-home-book", connected, fold = book)
+
+    // Home-screen widget (RemoteViews), drawn on a plain "wallpaper" at 3x2 cells.
+    private fun widgetShot(name: String, state: LinkState, dark: Boolean) {
+        val base = compose.activity
+        val config = android.content.res.Configuration(base.resources.configuration).apply {
+            uiMode = (uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK.inv()) or
+                if (dark) android.content.res.Configuration.UI_MODE_NIGHT_YES else android.content.res.Configuration.UI_MODE_NIGHT_NO
+        }
+        val ctx = base.createConfigurationContext(config)
+        var bmp: Bitmap? = null
+        compose.runOnUiThread {
+            val d = ctx.resources.displayMetrics.density
+            val w = (300 * d).toInt(); val h = (150 * d).toInt(); val pad = (24 * d).toInt()
+            val host = android.widget.FrameLayout(ctx)
+            val v = LinkWidget.views(ctx, LinkWidget.Model.of(state)).apply(ctx, host)
+            v.measure(android.view.View.MeasureSpec.makeMeasureSpec(w, android.view.View.MeasureSpec.EXACTLY),
+                android.view.View.MeasureSpec.makeMeasureSpec(h, android.view.View.MeasureSpec.EXACTLY))
+            v.layout(0, 0, w, h)
+            bmp = Bitmap.createBitmap(w + 2 * pad, h + 2 * pad, Bitmap.Config.ARGB_8888).also {
+                val c = android.graphics.Canvas(it)
+                c.drawColor(if (dark) 0xFF2B3A55.toInt() else 0xFFB9CBE8.toInt())
+                c.translate(pad.toFloat(), pad.toFloat())
+                v.draw(c)
+            }
+        }
+        val dir = File("build/screenshots").apply { mkdirs() }
+        File(dir, "$name.png").outputStream().use { bmp!!.compress(Bitmap.CompressFormat.PNG, 100, it) }
+    }
+
+    @Test @Config(qualifiers = "w412dp-h915dp-xxhdpi")
+    fun widgetConnected() = widgetShot("14-widget-connected", connected, dark = true)
+
+    @Test @Config(qualifiers = "w412dp-h915dp-xxhdpi")
+    fun widgetActiveLight() = widgetShot("15-widget-live-light", connected.copy(mirroring = true, macRinging = true), dark = false)
+
+    @Test @Config(qualifiers = "w412dp-h915dp-xxhdpi")
+    fun widgetOffline() = widgetShot("16-widget-offline", connected.copy(connected = false, detail = "Waiting for Wi-Fi"), dark = true)
 }

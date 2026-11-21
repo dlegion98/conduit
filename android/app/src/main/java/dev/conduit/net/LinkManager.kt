@@ -175,15 +175,26 @@ object LinkManager {
 
     // ---- Sending -----------------------------------------------------------
 
+    /** Writes from the UI thread go here, in order, so a slow network never blocks the screen. */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private val outbox = Dispatchers.IO.limitedParallelism(1)
+
     /** Sends on the control channel; quietly drops the message if the Mac isn't connected. */
     fun send(type: String, build: JSONObject.() -> Unit = {}): Boolean {
         val c = control ?: return false
-        return try {
-            c.send(type, build); true
-        } catch (e: Exception) {
-            Log.w(TAG, "send $type failed: ${e.message}")
-            false
+        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+            val msg = runCatching { JSONObject().put("type", type).apply(build) }.getOrElse { return false }
+            scope.launch(outbox) { write(c, type) { c.send(msg) } }
+            return true
         }
+        return write(c, type) { c.send(type, build) }
+    }
+
+    private inline fun write(c: Connection, type: String, block: () -> Unit): Boolean = try {
+        block(); true
+    } catch (e: Exception) {
+        Log.w(TAG, "send $type failed: ${e.message}")
+        false
     }
 
     /** Opens a side channel (mirror, camera, file) to the currently connected Mac. */
@@ -296,7 +307,7 @@ object LinkManager {
         send("hello") {
             put("deviceName", deviceName())
             put("model", "${Build.MANUFACTURER} ${Build.MODEL}")
-            put("appVersion", "1.0")
+            put("appVersion", runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull() ?: "1.0")
         }
         StatusReporter.sendNow(context)
         NotificationMirror.instance?.sendAllActive()
