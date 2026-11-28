@@ -232,14 +232,19 @@ private struct Bubble: View {
     var body: some View {
         HStack {
             if message.outgoing { Spacer(minLength: 60) }
-            VStack(alignment: message.outgoing ? .trailing : .leading, spacing: 2) {
-                Text(message.body)
-                    .textSelection(.enabled)
-                    .padding(.horizontal, 12).padding(.vertical, 7)
-                    .background(message.outgoing ? Color.accentColor : Color.secondary.opacity(0.18),
-                                in: RoundedRectangle(cornerRadius: 16))
-                    .foregroundStyle(message.outgoing ? .white : .primary)
-                    .opacity(message.pending ? 0.6 : 1)
+            VStack(alignment: message.outgoing ? .trailing : .leading, spacing: 4) {
+                ForEach(message.attachments) { a in
+                    if a.isImage { MmsImageView(part: a.part) } else { AttachmentChip(attachment: a, outgoing: message.outgoing) }
+                }
+                if !message.body.isEmpty || message.attachments.isEmpty {
+                    Text(message.body.isEmpty ? "MMS" : message.body)
+                        .textSelection(.enabled)
+                        .padding(.horizontal, 12).padding(.vertical, 7)
+                        .background(message.outgoing ? Color.accentColor : Color.secondary.opacity(0.18),
+                                    in: RoundedRectangle(cornerRadius: 16))
+                        .foregroundStyle(message.outgoing ? .white : .primary)
+                        .opacity(message.pending ? 0.6 : 1)
+                }
                 Text(message.date, style: .time).font(.caption2).foregroundStyle(.tertiary)
             }
             if !message.outgoing { Spacer(minLength: 60) }
@@ -247,15 +252,119 @@ private struct Bubble: View {
     }
 }
 
+/// A picture from an MMS. Fetched from the phone when it scrolls into view; click to open it in Preview.
+private struct MmsImageView: View {
+    let part: Int64
+    @EnvironmentObject var model: AppModel
+
+    var body: some View {
+        Group {
+            if let image = model.mmsImages[part] {
+                Image(nsImage: image).resizable().scaledToFit()
+                    .frame(maxWidth: 240, maxHeight: 320)
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                    .onTapGesture { if let url = model.exportMmsImage(part, toDownloads: false) { NSWorkspace.shared.open(url) } }
+                    .contextMenu {
+                        Button("Open in Preview") { if let url = model.exportMmsImage(part, toDownloads: false) { NSWorkspace.shared.open(url) } }
+                        Button("Save to Downloads") {
+                            if let url = model.exportMmsImage(part, toDownloads: true) { NSWorkspace.shared.activateFileViewerSelecting([url]) }
+                        }
+                        Button("Copy") {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.writeObjects([image])
+                        }
+                    }
+                    .help("Click to open in Preview")
+            } else {
+                RoundedRectangle(cornerRadius: 14).fill(Color.secondary.opacity(0.15))
+                    .frame(width: 180, height: 135)
+                    .overlay {
+                        if model.mmsFailed.contains(part) {
+                            VStack(spacing: 4) {
+                                Image(systemName: "photo").font(.title2)
+                                Text(model.connected ? "Couldn't load photo" : "Photo").font(.caption)
+                            }
+                            .foregroundStyle(.secondary)
+                        } else {
+                            ProgressView().controlSize(.small)
+                        }
+                    }
+                    .onAppear { model.loadMmsImage(part) }
+                    .onChange(of: model.connected) { _, now in if now { model.loadMmsImage(part) } }
+            }
+        }
+    }
+}
+
+/// A non-picture MMS part (video, audio, contact card): shown by name, open it on the phone.
+private struct AttachmentChip: View {
+    let attachment: MmsAttachment
+    let outgoing: Bool
+
+    private var symbol: String {
+        if attachment.mime.hasPrefix("video/") { return "film" }
+        if attachment.mime.hasPrefix("audio/") { return "waveform" }
+        if attachment.mime.contains("vcard") { return "person.crop.square" }
+        return "paperclip"
+    }
+
+    var body: some View {
+        Label(attachment.label, systemImage: symbol)
+            .font(.callout)
+            .padding(.horizontal, 12).padding(.vertical, 7)
+            .background(Color.secondary.opacity(0.18), in: RoundedRectangle(cornerRadius: 16))
+            .help("Open this message on your phone to see the \(attachment.label.lowercased())")
+    }
+}
+
 private struct NewMessageView: View {
     @EnvironmentObject var model: AppModel
     @State private var to = ""
+    @State private var picked: ContactMatch?
     @State private var body_ = ""
+    @State private var searchTask: DispatchWorkItem?
     let done: () -> Void
+
+    /// Suggestions for what's typed now (the phone answers each search; stale answers are ignored).
+    private var suggestions: [ContactMatch] {
+        let q = to.trimmingCharacters(in: .whitespaces)
+        guard picked == nil, !q.isEmpty, model.contactMatches.query == q else { return [] }
+        return model.contactMatches.results
+    }
 
     var body: some View {
         Form {
-            TextField("To (phone number)", text: $to)
+            Section {
+                TextField("To (name or phone number)", text: $to)
+                    .onChange(of: to) { _, value in
+                        if let p = picked, value != p.number { picked = nil }
+                        searchTask?.cancel()
+                        guard picked == nil else { return }
+                        // Wait for a pause in typing, so one search goes to the phone, not one per key.
+                        let task = DispatchWorkItem { model.searchContacts(value) }
+                        searchTask = task
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: task)
+                    }
+                if let p = picked {
+                    Label("\(p.name) · \(p.label)", systemImage: "person.crop.circle.badge.checkmark")
+                        .foregroundStyle(.secondary)
+                }
+                ForEach(suggestions) { c in
+                    Button {
+                        picked = c
+                        to = c.number
+                    } label: {
+                        HStack {
+                            Image(systemName: "person.crop.circle").foregroundStyle(.secondary)
+                            Text(c.name)
+                            Spacer()
+                            Text("\(c.label)  \(c.number)").foregroundStyle(.secondary).font(.callout)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
             TextField("Message", text: $body_, axis: .vertical).lineLimit(3...8)
             HStack {
                 Spacer()
@@ -265,7 +374,7 @@ private struct NewMessageView: View {
                     done()
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(to.isEmpty || body_.isEmpty)
+                .disabled(to.isEmpty || body_.isEmpty || !to.contains(where: \.isNumber))
             }
         }
         .formStyle(.grouped)

@@ -333,6 +333,8 @@ object LinkManager {
             "sms-send" -> SmsHandler.sendSms(context, msg.getString("address"), msg.getString("body"))
             "sms-mark-read" -> SmsHandler.markRead(context, msg.optLong("threadId"), msg.optString("address"), msg.optString("name"))
             "contact-photos" -> SmsHandler.sendContactPhotos(context, msg.optJSONArray("addresses"))
+            "mms-image" -> msg.optLong("part", -1).takeIf { it >= 0 }?.let { part -> scope.launch { SmsHandler.sendMmsImage(context, part) } }
+            "contacts-search" -> SmsHandler.searchContacts(context, msg.optString("query").take(100))
             "call-action" -> CallHandler.action(context, msg.getString("action"))
             "call-dial" -> Launcher.dial(context, msg.getString("number"))
             "media-control" -> MediaHandler.control(msg.getString("action"))

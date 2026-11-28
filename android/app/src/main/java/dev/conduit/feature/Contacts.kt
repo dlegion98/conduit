@@ -7,8 +7,10 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.provider.ContactsContract
+import android.provider.ContactsContract.CommonDataKinds.Phone
 import android.util.Base64
 import android.util.LruCache
+import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 
 object Contacts {
@@ -53,5 +55,31 @@ object Contacts {
         }.getOrNull() ?: ""
         photoCache.put(number, encoded)
         return encoded
+    }
+
+    /**
+     * Contacts whose name or number matches [query], for the Mac's New Message "To" field:
+     * up to [limit] entries of {name, number, label}, one per phone number.
+     */
+    fun search(context: Context, query: String, limit: Int = 12): List<JSONObject> {
+        val q = query.trim()
+        if (q.isEmpty() || !allowed(context)) return emptyList()
+        val out = ArrayList<JSONObject>()
+        val numbers = HashSet<String>()
+        runCatching {
+            context.contentResolver.query(
+                Uri.withAppendedPath(Phone.CONTENT_FILTER_URI, Uri.encode(q)),
+                arrayOf(Phone.DISPLAY_NAME, Phone.NUMBER, Phone.TYPE, Phone.LABEL),
+                null, null, null
+            )?.use { c ->
+                while (c.moveToNext() && out.size < limit) {
+                    val number = c.getString(1)?.trim().orEmpty()
+                    if (number.isEmpty() || !numbers.add(number.filter { it.isDigit() || it == '+' })) continue
+                    val label = Phone.getTypeLabel(context.resources, c.getInt(2), c.getString(3)).toString()
+                    out += JSONObject().put("name", c.getString(0) ?: "").put("number", number).put("label", label)
+                }
+            }
+        }
+        return out
     }
 }

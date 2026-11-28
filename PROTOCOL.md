@@ -57,9 +57,11 @@ closes.
 | `status` | `battery` (0-100), `charging` |
 | `notification` | `key, pkg, app, title, text, time, icon?` (b64 PNG), `actions:[{index,title,reply}]` |
 | `notification-removed` | `key` |
-| `clipboard` | `text?` · `image?` (b64 PNG) |
+| `clipboard` | `text?` · `image?` (b64 PNG) · `quiet?` (true for ⌘C/⌘X in the mirror window: the Mac skips the banner) |
 | `sms-threads` | `threads:[{threadId,address,name,snippet,date,read}]` |
-| `sms-messages` | `threadId, messages:[{id,address,body,date,outgoing}]` |
+| `sms-messages` | `threadId, messages:[{id,address,body,date,outgoing,mms?,attachments?}]` — MMS entries have a negative `id`, `mms: true`, their text in `body` and `attachments:[{part, mime, name}]` for the other parts. Threads whose newest message is an MMS appear in `sms-threads` too. |
+| `mms-image` | `part, image` (b64 JPEG, ≤ 1600 px; `""` if it couldn't be read) — reply to the Mac's request |
+| `contacts` | `query, results:[{name, number, label}]` (≤ 12) — reply to `contacts-search` |
 | `sms-received` | `threadId, address, name, body, date` |
 | `sms-sent` | `address, ok, error?` |
 | `call` | `state` (`ringing`/`offhook`/`idle`), `number, name` |
@@ -84,6 +86,8 @@ closes.
 | `sms-send` | `address, body` |
 | `sms-mark-read` | `threadId, address, name` — read on the Mac; the phone clears that conversation's notification |
 | `contact-photos` | `addresses:[…]` (≤ 40) — asks for contact photos |
+| `mms-image` | `part` — asks for one MMS picture (sent when its bubble scrolls into view; older phones don't answer) |
+| `contacts-search` | `query` — name or number typed in New Message; older phones don't answer |
 | `call-action` | `action` (`answer`/`decline`) |
 | `call-dial` | `number` |
 | `media-control` | `action` (`toggle`,`play`,`pause`,`next`,`previous`) |
@@ -92,7 +96,7 @@ closes.
 | `ring` | `on` |
 | `mirror-start` | `maxSize, bitrate, fps` · `mirror-stop` |
 | `camera-start` | `facing` (`back`/`front`), `width, height, fps` · `camera-stop` |
-| `input` | `action` (`tap`,`longpress`,`gesture`,`global`,`text`,`backspace`,`enter`,`dpad`,`pinch`), `x, y` (0-1), `points:[[x,y],…]`, `durationMs`, `key` (`back`,`home`,`recents`,`notifications`,`quicksettings`,`lock`,`screenshot`; for `dpad`: `up`,`down`,`left`,`right`,`center`,`tab`), `text`, `shift` (`dpad`: extend the selection / Tab backwards), `scale` (`pinch`: > 1 zooms in, < 1 zooms out, around `x, y`). Older phones ignore `dpad` and `pinch`. |
+| `input` | `action` (`tap`,`longpress`,`gesture`,`global`,`text`,`backspace`,`enter`,`dpad`,`pinch`), `x, y` (0-1), `points:[[x,y],…]`, `durationMs`, `key` (`back`,`home`,`recents`,`notifications`,`quicksettings`,`lock`,`screenshot`; for `dpad`: `up`,`down`,`left`,`right`,`center`,`tab`), `text`, `shift` (`dpad`: extend the selection / Tab backwards), `scale` (`pinch`: > 1 zooms in, < 1 zooms out, around `x, y`). `caret`: `key` (`left`,`right`,`all`), `by` (`char`,`word`,`line`,`text`), `shift` — moves the cursor in the focused text field. `delete`: `key` (`back`,`forward`), `by` (`char`,`word`,`line`). `copy` / `cut`: the phone sends the focused field's selected text back as `clipboard` with `quiet: true`. Older phones ignore `dpad`, `pinch`, `caret`, `delete`, `copy` and `cut`. |
 | `ping` / `pong` | — |
 
 ## Video channels (1 = mirror, 2 = camera)

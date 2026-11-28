@@ -58,6 +58,8 @@ final class ClipboardSync {
         }
         ignoreChange = pb.changeCount
         lastChange = pb.changeCount
+        // ⌘C in the mirror window: you can see it worked, no banner needed.
+        if msg.bool("quiet") { return }
         NotificationsBridge.shared.postInfo(title: "Clipboard from \(AppModel.shared.phoneName)", body: (msg["text"] as? String).map { String($0.prefix(80)) } ?? "Image")
     }
 }

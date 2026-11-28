@@ -2,6 +2,12 @@
 
 Newest first. Each release's build number is the commit count on `main`.
 
+## Week of 2026-11-28
+- **Picture messages and group texts in Messages** on the Mac: photos show right in the conversation (click one to open it in Preview, right-click to save or copy), and conversations whose latest message is an MMS now show up in the list. Videos and other attachments show as a label for now — open those on the phone.
+- **Pick a contact in New Message:** start typing a name in the "To" field and choose from your phone's contacts.
+- **Mac text shortcuts in the mirror window:** ⌘A selects all, ⌥← / ⌥→ jump by word, ⌘← / ⌘→ (or Home / End) go to the start or end of the line, ⌥⌫ and ⌘⌫ delete a word or line, and fn-⌫ deletes forward. **⌘C / ⌘X** copy the text selected on the phone straight to the Mac clipboard.
+- **Fix:** when two texts arrived within a second of each other, only the second one appeared in an open conversation on the Mac. Now both do.
+
 ## Week of 2026-11-21
 - **Home-screen widget** for Android: see whether the link is up and your Mac's battery, and tap to **send your clipboard**, **mirror the screen** or **find your Mac**. Long-press the home screen → Widgets → Conduit.
 - **Keyboard and trackpad in the mirror window:** arrow keys and Tab move around the phone like a D-pad (in a text field they move the cursor; hold Shift to select), and pinching on the trackpad pinch-zooms on the phone.

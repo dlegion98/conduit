@@ -31,6 +31,30 @@ struct SmsMessage: Identifiable, Equatable {
     let date: Date
     let outgoing: Bool
     var pending = false
+    /// MMS parts other than text (pictures, videos, contact cards…).
+    var attachments: [MmsAttachment] = []
+}
+
+struct MmsAttachment: Identifiable, Equatable {
+    var id: Int64 { part }
+    let part: Int64
+    let mime: String
+    let name: String
+    var isImage: Bool { mime.hasPrefix("image/") }
+    var label: String {
+        if mime.hasPrefix("video/") { return "Video" }
+        if mime.hasPrefix("audio/") { return "Audio" }
+        if mime.contains("vcard") { return "Contact card" }
+        return name.isEmpty ? "Attachment" : name
+    }
+}
+
+/// A phone contact matching what's typed in New Message's "To" field.
+struct ContactMatch: Identifiable, Equatable {
+    var id: String { number }
+    let name: String
+    let number: String
+    let label: String
 }
 
 /// One entry in the menu bar's clipboard history (kept in memory only, never written to disk).
@@ -98,6 +122,12 @@ final class AppModel: ObservableObject {
     @Published var clipboardHistory: [ClipItem] = []
     @Published var contactPhotos: [String: NSImage] = [:] // phone number -> photo
     private var photosRequested: Set<String> = []
+    /// MMS pictures fetched this session (part id -> image), loaded when a bubble scrolls into view.
+    @Published var mmsImages: [Int64: NSImage] = [:]
+    @Published var mmsFailed: Set<Int64> = []
+    private var mmsRequested: Set<Int64> = []
+    /// The latest answer to a New Message contact search.
+    @Published var contactMatches: (query: String, results: [ContactMatch]) = ("", [])
     /// threadId -> date (ms) of the newest message read on the Mac, so a refresh from the phone
     /// (whose read flag only the default SMS app can change) doesn't bring the unread dot back.
     private var readUpTo: [String: Double] = UserDefaults.standard.dictionary(forKey: "smsReadUpTo") as? [String: Double] ?? [:]
@@ -243,8 +273,16 @@ final class AppModel: ObservableObject {
             let tid = msg.int64("threadId")
             messages[tid] = msg.array("messages").map {
                 SmsMessage(id: String($0.int64("id")), body: $0.str("body"),
-                           date: Date(timeIntervalSince1970: $0.double("date") / 1000), outgoing: $0.bool("outgoing"))
+                           date: Date(timeIntervalSince1970: $0.double("date") / 1000), outgoing: $0.bool("outgoing"),
+                           attachments: $0.array("attachments").map { a in MmsAttachment(part: a.int64("part"), mime: a.str("mime"), name: a.str("name")) })
             }
+        case "mms-image":
+            let part = msg.int64("part")
+            if let image = NSImage.fromBase64(msg.str("image")) { mmsImages[part] = image } else { mmsFailed.insert(part) }
+        case "contacts":
+            contactMatches = (msg.str("query"), msg.array("results").map {
+                ContactMatch(name: $0.str("name"), number: $0.str("number"), label: $0.str("label"))
+            })
         case "sms-received":
             let tid = msg.int64("threadId")
             let date = Date(timeIntervalSince1970: msg.double("date") / 1000)
@@ -345,6 +383,42 @@ final class AppModel: ObservableObject {
             photosRequested.formUnion(batch)
             send("contact-photos", ["addresses": batch])
         }
+    }
+
+    /// Asks the phone for an MMS picture once per session. Older phones don't answer, so give up after a while.
+    func loadMmsImage(_ part: Int64) {
+        guard connected, mmsImages[part] == nil, !mmsRequested.contains(part) else { return }
+        mmsRequested.insert(part)
+        mmsFailed.remove(part)
+        send("mms-image", ["part": part])
+        DispatchQueue.main.asyncAfter(deadline: .now() + 30) { [weak self] in
+            guard let self, self.mmsImages[part] == nil else { return }
+            self.mmsRequested.remove(part) // allow a retry when the bubble shows again
+            self.mmsFailed.insert(part)
+        }
+    }
+
+    /// Writes an MMS picture to a temporary file (for Preview) or to ~/Downloads/Conduit.
+    func exportMmsImage(_ part: Int64, toDownloads: Bool) -> URL? {
+        guard let image = mmsImages[part], let tiff = image.tiffRepresentation,
+              let jpeg = NSBitmapImageRep(data: tiff)?.representation(using: .jpeg, properties: [.compressionFactor: 0.92]) else { return nil }
+        let folder = toDownloads ? FileTransfer.shared.downloadsFolder
+            : FileManager.default.temporaryDirectory.appendingPathComponent("Conduit MMS", isDirectory: true)
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        var url = folder.appendingPathComponent("MMS \(part).jpg")
+        var n = 2
+        while toDownloads && FileManager.default.fileExists(atPath: url.path) {
+            url = folder.appendingPathComponent("MMS \(part) \(n).jpg"); n += 1
+        }
+        do { try jpeg.write(to: url) } catch { return nil }
+        return url
+    }
+
+    /// Looks up phone contacts by name or number for New Message (answered with `contacts`).
+    func searchContacts(_ query: String) {
+        let q = query.trimmingCharacters(in: .whitespaces)
+        guard connected, !q.isEmpty else { contactMatches = ("", []); return }
+        send("contacts-search", ["query": q])
     }
 
     // MARK: Clipboard history

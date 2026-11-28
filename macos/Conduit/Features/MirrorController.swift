@@ -5,7 +5,7 @@ import SwiftUI
 
 /// Phone screen in a Mac window. Click = tap, drag = swipe, hold = long-press,
 /// scroll = swipe, pinch = pinch, right-click = Back, typing goes into the focused text field,
-/// arrow keys and Tab act as a D-pad.
+/// arrow keys and Tab act as a D-pad, and the usual Mac text shortcuts (⌘A, ⌥←, ⌘←, ⌥⌫, ⌘C…) edit phone text fields.
 final class MirrorController: NSObject, NSWindowDelegate {
     static let shared = MirrorController()
 
@@ -406,21 +406,48 @@ final class MirrorScreenView: NSView {
         onInput?(["action": "dpad", "key": key, "shift": event.modifierFlags.contains(.shift)])
     }
 
+    /// Text-field editing on the phone: move the cursor by a word, a line or the whole text, select all.
+    private func caret(_ key: String, by: String, _ event: NSEvent) {
+        onInput?(["action": "caret", "key": key, "by": by, "shift": event.modifierFlags.contains(.shift)])
+    }
+
     override func keyDown(with event: NSEvent) {
-        if event.modifierFlags.contains(.command) {
-            if event.charactersIgnoringModifiers == "s" {
-                MirrorController.shared.saveScreenshot()
-            } else if event.charactersIgnoringModifiers == "v", let text = NSPasteboard.general.string(forType: .string) {
-                onInput?(["action": "text", "text": text])
-            } else if event.charactersIgnoringModifiers == "w" {
-                window?.performClose(nil)
+        let flags = event.modifierFlags
+        let code = Int(event.keyCode)
+        if flags.contains(.command) {
+            switch code {
+            case 123: caret("left", by: "line", event); return   // ⌘← start of line
+            case 124: caret("right", by: "line", event); return  // ⌘→ end of line
+            case 126: caret("left", by: "text", event); return   // ⌘↑ start of text
+            case 125: caret("right", by: "text", event); return  // ⌘↓ end of text
+            case 51: onInput?(["action": "delete", "key": "back", "by": "line"]); return // ⌘⌫
+            default: break
+            }
+            switch event.charactersIgnoringModifiers?.lowercased() {
+            case "s": MirrorController.shared.saveScreenshot()
+            case "v":
+                if let text = NSPasteboard.general.string(forType: .string) { onInput?(["action": "text", "text": text]) }
+            case "w": window?.performClose(nil)
+            case "a": onInput?(["action": "caret", "key": "all"])
+            case "c": onInput?(["action": "copy"])
+            case "x": onInput?(["action": "cut"])
+            default: break
             }
             return
         }
-        switch Int(event.keyCode) {
-        case 51: onInput?(["action": "backspace"])          // delete
+        let option = flags.contains(.option)
+        switch code {
+        case 51:                                             // delete (⌥ = a word)
+            if option { onInput?(["action": "delete", "key": "back", "by": "word"]) } else { onInput?(["action": "backspace"]) }
+        case 117:                                            // forward delete (fn-delete)
+            onInput?(["action": "delete", "key": "forward", "by": option ? "word" : "char"])
         case 36, 76: onInput?(["action": "enter"])          // return / enter
         case 53: onInput?(["action": "global", "key": "back"]) // escape
+        case 115: caret("left", by: "line", event)           // Home
+        case 119: caret("right", by: "line", event)          // End
+        // ⌥← / ⌥→ jump by word in a text field.
+        case 123 where option: caret("left", by: "word", event)
+        case 124 where option: caret("right", by: "word", event)
         // Arrow keys and Tab move around like a D-pad (or move the cursor in a text field).
         case 123: dpad("left", event)
         case 124: dpad("right", event)

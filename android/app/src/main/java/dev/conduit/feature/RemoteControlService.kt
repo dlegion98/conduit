@@ -87,6 +87,10 @@ class RemoteControlService : AccessibilityService() {
                 }
             }
             "dpad" -> dpad(msg.optString("key"), msg.optBoolean("shift"))
+            "caret" -> focusedEditable()?.let { caret(it, msg.optString("key"), msg.optString("by", "char"), msg.optBoolean("shift")) }
+            "delete" -> delete(msg.optString("key", "back") == "forward", msg.optString("by", "char"))
+            "copy" -> copySelection(cut = false)
+            "cut" -> copySelection(cut = true)
             "pinch" -> pinch(msg.optDouble("x", 0.5), msg.optDouble("y", 0.5), msg.optDouble("scale", 1.0), msg.optLong("durationMs", 400))
             "enter" -> {
                 val node = rootInActiveWindow?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT) ?: return
@@ -123,19 +127,88 @@ class RemoteControlService : AccessibilityService() {
         )
     }
 
-    private fun moveCursor(node: AccessibilityNodeInfo, delta: Int, extend: Boolean) {
-        val length = if (node.isShowingHintText) 0 else node.text?.length ?: 0
+    private fun moveCursor(node: AccessibilityNodeInfo, delta: Int, extend: Boolean) =
+        caret(node, if (delta < 0) "left" else "right", "char", extend)
+
+    private fun focusedEditable(): AccessibilityNodeInfo? =
+        rootInActiveWindow?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)?.takeIf { it.isEditable }
+
+    private fun textOf(node: AccessibilityNodeInfo) = if (node.isShowingHintText) "" else node.text?.toString() ?: ""
+
+    /** Where the cursor lands moving [left] from [pos] by a word, a line, the whole text, or one character. */
+    private fun target(text: String, pos: Int, left: Boolean, by: String): Int = when (by) {
+        "word" -> if (left) {
+            var p = pos
+            while (p > 0 && !text[p - 1].isLetterOrDigit()) p--
+            while (p > 0 && text[p - 1].isLetterOrDigit()) p--
+            p
+        } else {
+            var p = pos
+            while (p < text.length && !text[p].isLetterOrDigit()) p++
+            while (p < text.length && text[p].isLetterOrDigit()) p++
+            p
+        }
+        "line" -> if (left) text.lastIndexOf('\n', pos - 1) + 1 else text.indexOf('\n', pos).let { if (it < 0) text.length else it }
+        "text" -> if (left) 0 else text.length
+        else -> (pos + if (left) -1 else 1).coerceIn(0, text.length)
+    }
+
+    /**
+     * Moves the cursor in a text field: [key] is left, right or all (select all); [by] is char, word,
+     * line or text. With [extend] (Shift) the selection grows from its anchor instead.
+     */
+    private fun caret(node: AccessibilityNodeInfo, key: String, by: String, extend: Boolean) {
+        val text = textOf(node)
+        val length = text.length
         val start = node.textSelectionStart.takeIf { it >= 0 }?.coerceIn(0, length) ?: length
         val end = node.textSelectionEnd.takeIf { it >= 0 }?.coerceIn(0, length) ?: length
+        val left = key == "left"
         val (newStart, newEnd) = when {
-            extend -> start to (end + delta).coerceIn(0, length)
-            start != end -> (if (delta < 0) minOf(start, end) else maxOf(start, end)).let { it to it }
-            else -> (start + delta).coerceIn(0, length).let { it to it }
+            key == "all" -> 0 to length
+            key != "left" && key != "right" -> return
+            extend -> start to target(text, end, left, by)
+            start != end && by == "char" -> (if (left) minOf(start, end) else maxOf(start, end)).let { it to it }
+            else -> target(text, if (left) minOf(start, end) else maxOf(start, end), left, by).let { it to it }
         }
         node.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, Bundle().apply {
             putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, newStart)
             putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT, newEnd)
         })
+    }
+
+    /** ⌥⌫ / ⌘⌫ / forward delete: removes the selection, or a character, word or line next to the cursor. */
+    private fun delete(forward: Boolean, by: String) = editFocused { text, start, end ->
+        when {
+            start != end -> Triple(text.removeRange(start, end), start, true)
+            forward -> {
+                val to = target(text, start, false, by)
+                if (to > start) Triple(text.removeRange(start, to), start, true) else Triple(text, start, false)
+            }
+            else -> {
+                val from = target(text, start, true, by)
+                if (from < start) Triple(text.removeRange(from, start), from, true) else Triple(text, start, false)
+            }
+        }
+    }
+
+    /**
+     * ⌘C / ⌘X in the mirror window: the selected text in the phone's focused field goes straight to
+     * the Mac clipboard (and the phone's own). Password fields are never copied.
+     */
+    private fun copySelection(cut: Boolean) {
+        val node = focusedEditable() ?: return
+        if (node.isPassword) return
+        val text = textOf(node)
+        val a = node.textSelectionStart.coerceIn(0, text.length)
+        val b = node.textSelectionEnd.coerceIn(0, text.length)
+        if (a == b) return
+        val selected = text.substring(minOf(a, b), maxOf(a, b))
+        dev.conduit.net.LinkManager.send("clipboard") { put("text", selected); put("quiet", true) }
+        runCatching {
+            getSystemService(android.content.ClipboardManager::class.java)
+                .setPrimaryClip(android.content.ClipData.newPlainText("Conduit", selected))
+        }
+        if (cut) delete(forward = false, by = "char")
     }
 
     /** Trackpad pinch: two fingers moving apart (scale > 1, zoom in) or together around (x, y). */

@@ -62,29 +62,44 @@ object SmsHandler {
         observer = null
     }
 
+    /**
+     * Pushes every inbox message newer than the last one pushed (oldest first), so two texts that
+     * arrive within the debounce window both reach the Mac, not just the newest.
+     */
     private fun checkNew(context: Context) {
-        val latest = latestInbox(context) ?: return
-        val date = latest.optLong("date")
-        if (date <= lastSeenDate) return
-        lastSeenDate = date
-        LinkManager.send("sms-received") {
-            put("threadId", latest.getLong("threadId"))
-            put("address", latest.getString("address"))
-            put("name", Contacts.nameFor(context, latest.getString("address")))
-            put("body", latest.getString("body"))
-            put("date", date)
+        val fresh = ArrayList<JSONObject>()
+        runCatching {
+            context.contentResolver.query(
+                Telephony.Sms.Inbox.CONTENT_URI,
+                arrayOf(Telephony.Sms.THREAD_ID, Telephony.Sms.ADDRESS, Telephony.Sms.BODY, Telephony.Sms.DATE),
+                "${Telephony.Sms.DATE} > ?", arrayOf(lastSeenDate.toString()), "${Telephony.Sms.DATE} DESC"
+            )?.use { c ->
+                while (c.moveToNext() && fresh.size < 20) {
+                    fresh += JSONObject().put("threadId", c.getLong(0)).put("address", c.getString(1) ?: "")
+                        .put("body", c.getString(2) ?: "").put("date", c.getLong(3))
+                }
+            }
+        }
+        if (fresh.isEmpty()) return
+        lastSeenDate = maxOf(lastSeenDate, fresh.first().getLong("date"))
+        for (m in fresh.asReversed()) {
+            LinkManager.send("sms-received") {
+                put("threadId", m.getLong("threadId"))
+                put("address", m.getString("address"))
+                put("name", Contacts.nameFor(context, m.getString("address")))
+                put("body", m.getString("body"))
+                put("date", m.getLong("date"))
+            }
         }
     }
 
     private fun latestInbox(context: Context): JSONObject? = runCatching {
         context.contentResolver.query(
             Telephony.Sms.Inbox.CONTENT_URI,
-            arrayOf(Telephony.Sms.THREAD_ID, Telephony.Sms.ADDRESS, Telephony.Sms.BODY, Telephony.Sms.DATE),
+            arrayOf(Telephony.Sms.DATE),
             null, null, "${Telephony.Sms.DATE} DESC"
         )?.use { c ->
-            if (!c.moveToFirst()) null
-            else JSONObject().put("threadId", c.getLong(0)).put("address", c.getString(1) ?: "")
-                .put("body", c.getString(2) ?: "").put("date", c.getLong(3))
+            if (!c.moveToFirst()) null else JSONObject().put("date", c.getLong(0))
         }
     }.getOrNull()
 
@@ -113,7 +128,22 @@ object SmsHandler {
                     .put("read", c.getInt(4) == 1 || c.getInt(5) != Telephony.Sms.MESSAGE_TYPE_INBOX)
             }
         }
-        LinkManager.send("sms-threads") { put("threads", JSONArray(seen.values.toList())) }
+        // Picture messages and group texts live in the MMS table; a thread whose newest message is
+        // an MMS (or that only has MMS) takes its preview from there.
+        for (row in Mms.latestPerThread(context)) {
+            val existing = seen[row.threadId]
+            if (existing != null && existing.optLong("date") >= row.date) continue
+            val address = existing?.optString("address")?.takeIf { it.isNotBlank() } ?: Mms.address(context, row.id, row.outgoing)
+            seen[row.threadId] = JSONObject()
+                .put("threadId", row.threadId)
+                .put("address", address)
+                .put("name", existing?.optString("name")?.takeIf { it.isNotBlank() } ?: Contacts.nameFor(context, address))
+                .put("snippet", Mms.snippet(context, row))
+                .put("date", row.date)
+                .put("read", row.read)
+        }
+        val threads = seen.values.sortedByDescending { it.optLong("date") }.take(80)
+        LinkManager.send("sms-threads") { put("threads", JSONArray(threads)) }
     }
 
     fun sendMessages(context: Context, threadId: Long) {
@@ -133,10 +163,27 @@ object SmsHandler {
                     .put("outgoing", c.getInt(4) != Telephony.Sms.MESSAGE_TYPE_INBOX)
             }
         }
+        list += Mms.messagesFor(context, threadId)
+        list.sortByDescending { it.optLong("date") }
+        while (list.size > 200) list.removeAt(list.size - 1)
         list.reverse()
         LinkManager.send("sms-messages") {
             put("threadId", threadId)
             put("messages", JSONArray(list))
+        }
+    }
+
+    /** Answers the Mac's `mms-image` request with one picture from a picture message. */
+    fun sendMmsImage(context: Context, part: Long) {
+        val image = if (allowed(context, Manifest.permission.READ_SMS)) Mms.image(context, part) else ""
+        LinkManager.send("mms-image") { put("part", part); put("image", image) }
+    }
+
+    /** Answers the Mac's `contacts-search`: up to 12 phone numbers whose contact name or number matches. */
+    fun searchContacts(context: Context, query: String) {
+        LinkManager.send("contacts") {
+            put("query", query)
+            put("results", JSONArray(Contacts.search(context, query)))
         }
     }
 
